@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Leitweb – Einsatzführung</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">L</span><div><strong>Leitweb</strong><small>Einsatzführung</small></div></div>
+    <div class="system-state"><span class="pulse"></span><span>System bereit</span><time id="clock"></time></div>
+  </header>
+  <div class="shell">
+    <nav class="sidebar" aria-label="Hauptnavigation">
+      <button class="nav-item active" data-view="incidents"><span>⌁</span>Einsatzlage</button>
+      <button class="nav-item" data-view="resources"><span>▦</span>Einsatzmittel</button>
+      <a class="nav-item" href="/swagger" target="_blank"><span>↗</span>API</a>
+      <div class="sidebar-foot"><small>Organisation</small><code>1111…1111</code><span>Lokaler Testbetrieb</span></div>
+    </nav>
+    <main>
+      <section id="incidents-view" class="view">
+        <div class="page-head"><div><p class="eyebrow">Aktuelle Lage</p><h1>Einsatzübersicht</h1><p>Offene Vorgänge priorisieren und Einsatzmittel disponieren.</p></div><button class="primary" id="new-incident">+ Neuer Einsatz</button></div>
+        <div class="stats" id="incident-stats"></div>
+        <div class="workspace">
+          <section class="panel list-panel">
+            <div class="panel-head"><h2>Einsätze</h2><div class="filter"><button class="filter-chip active" data-filter="active">Aktiv</button><button class="filter-chip" data-filter="all">Alle</button></div></div>
+            <div id="incident-list" class="incident-list"><div class="loading">Einsatzlage wird geladen …</div></div>
+          </section>
+          <aside class="panel detail-panel" id="incident-detail"><div class="empty"><span>⌁</span><h3>Einsatz auswählen</h3><p>Details, Verlauf und Disposition erscheinen hier.</p></div></aside>
+        </div>
+      </section>
+      <section id="resources-view" class="view hidden">
+        <div class="page-head"><div><p class="eyebrow">Verfügbarkeit</p><h1>Einsatzmittel</h1><p>Fahrzeuge und Einheiten mit aktuellem taktischen Status.</p></div><button class="primary" id="new-resource">+ Einsatzmittel</button></div>
+        <section class="panel"><div class="resource-grid" id="resource-list"><div class="loading">Einsatzmittel werden geladen …</div></div></section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="incident-dialog">
+    <form id="incident-form"><input type="hidden" name="id"><div class="dialog-head"><div><p class="eyebrow">Vorgang bearbeiten</p><h2 id="incident-dialog-title">Neuer Einsatz</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
+      <label>Einsatznummer<input name="referenceNumber" required maxlength="50" placeholder="E-2026-0002"></label>
+      <label>Stichwort / Titel<input name="title" required maxlength="200" placeholder="z. B. Technische Hilfeleistung"></label>
+      <label>Einsatzort<input name="location" required maxlength="500" placeholder="Straße, Hausnummer, Ort"></label>
+      <label>Lagebeschreibung<textarea name="description" rows="4" placeholder="Erstmeldung und relevante Hinweise"></textarea></label>
+      <div class="dialog-actions"><button type="button" class="secondary close-dialog">Abbrechen</button><button class="primary" id="incident-submit" type="submit">Einsatz eröffnen</button></div>
+    </form>
+  </dialog>
+  <dialog id="resource-dialog">
+    <form id="resource-form"><input type="hidden" name="id"><div class="dialog-head"><div><p class="eyebrow">Stammdaten</p><h2 id="resource-dialog-title">Einsatzmittel anlegen</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
+      <label>Funkrufname<input name="callSign" required maxlength="50" placeholder="Florian 1/46-2"></label>
+      <label>Bezeichnung<input name="name" required maxlength="200" placeholder="Hilfeleistungslöschfahrzeug"></label>
+      <div class="dialog-actions"><button type="button" class="secondary close-dialog">Abbrechen</button><button class="primary" type="submit">Speichern</button></div>
+    </form>
+  </dialog>
+  <div id="toast" role="status"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

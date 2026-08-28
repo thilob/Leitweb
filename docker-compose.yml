@@ -1,0 +1,48 @@
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: leitweb
+      POSTGRES_USER: leitweb
+      POSTGRES_PASSWORD: leitweb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leitweb -d leitweb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  identity:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./deploy/keycloak:/opt/keycloak/data/import:ro,Z
+
+  api:
+    build:
+      context: ./src/Leitweb.Api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Development__UseInMemoryDatabase: "false"
+      Development__UseTestAuthentication: "false"
+      ConnectionStrings__Database: Host=database;Port=5432;Database=leitweb;Username=leitweb;Password=leitweb
+      Authentication__Authority: http://localhost:8080/realms/leitweb
+      Authentication__MetadataAddress: http://identity:8080/realms/leitweb/.well-known/openid-configuration
+      Authentication__Audience: leitweb-api
+      Authentication__RequireHttpsMetadata: "false"
+    ports:
+      - "5000:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+      identity:
+        condition: service_started
+
+volumes:
+  postgres-data:

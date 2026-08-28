@@ -1,0 +1,51 @@
+# Leitweb
+
+Erstes MVP einer containerisierten Leitstellen-Webanwendung. Der aktuelle Schnitt stellt eine versionierte REST-API für Einsätze und Einsatzmittel bereit. PostgreSQL übernimmt die strukturierte Datenhaltung, Keycloak die Anmeldung und Berechtigungs-Claims.
+
+Die integrierte Oberfläche unter `/` bietet eine Einsatzlage mit Statusführung, Einsatzanlage, Einsatzmittel-Stammdaten und taktischen Status sowie das Disponieren und Lösen von Einsatzmitteln. Sie benötigt keine separate Frontend-Buildkette.
+
+## Start
+
+Voraussetzung ist Docker mit Compose:
+
+```sh
+docker compose up --build
+```
+
+Danach sind erreichbar:
+
+- API und Swagger: http://localhost:5000/swagger
+- Keycloak: http://localhost:8080 (Administration: `admin` / `admin`)
+- Beispielbenutzer: `dispatcher` / `change-me` (Passwortwechsel beim ersten Login)
+
+Die mitgelieferten Zugangsdaten dienen nur der lokalen Entwicklung und müssen vor einem Deployment ersetzt werden.
+
+### Start ohne Docker
+
+Für eine schnelle lokale Vorschau ist ein ausdrücklich auf `Development` begrenzter Modus enthalten. Er verwendet eine flüchtige In-Memory-Datenbank, Beispieldaten und einen automatisch berechtigten Testbenutzer:
+
+```sh
+dotnet run --project src/Leitweb.Api/Leitweb.Api.csproj --urls http://localhost:5000
+```
+
+Beispiel-Organisations-ID: `11111111-1111-1111-1111-111111111111`. Nach einem Neustart werden die flüchtigen Daten neu angelegt. Im Containerbetrieb sind In-Memory-Datenbank und Test-Authentifizierung explizit deaktiviert.
+
+Unter Rocky Linux und RHEL ist der Keycloak-Mount mit dem SELinux-Label `Z` versehen. Die Compose-Datei ist damit auch für Podman vorbereitet, muss aber noch in einer Linux-CI tatsächlich als Integrationstest ausgeführt werden.
+
+## API und RBAC
+
+Die Endpunkte liegen unter `/api/v1`. Autorisierung erfolgt über den mehrfach vorkommenden JWT-Claim `permission`:
+
+- `incident.read`, `incident.create`, `incident.update`
+- `resource.read`, `resource.manage`
+
+Einsätze und Einsatzmittel tragen eine `organizationId`. Dieser erste Stand filtert Listen danach; eine verbindliche serverseitige Zuordnung des angemeldeten Benutzers zu Organisationen ist der nächste Sicherheitsschritt.
+
+## Architekturentscheidungen
+
+- Modularer Monolith als einfacher Ausgangspunkt
+- Zustandslose API und externe PostgreSQL-Datenbank, daher später gut nach Kubernetes übertragbar
+- Health-Endpunkte unter `/health/live` und `/health/ready`
+- OpenAPI/Swagger für offenen, dokumentierbaren Datenzugriff
+
+Für das MVP erzeugt Entity Framework das Schema beim Start mit `EnsureCreated`. Vor dem ersten produktiven Einsatz wird dies durch versionierte EF-Core-Migrationen ersetzt.
