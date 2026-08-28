@@ -54,7 +54,9 @@ async function startLogin() {
   sessionStorage.setItem('leitweb-pkce-verifier', verifier);
   sessionStorage.setItem('leitweb-login-state', loginState);
   const redirectUri = `${location.origin}${location.pathname}`;
-  const query = new URLSearchParams({client_id:auth.config.clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid profile',state:loginState,code_challenge:base64Url(await sha256(verifier)),code_challenge_method:'S256'});
+  const supportsS256 = Boolean(globalThis.crypto?.subtle);
+  const codeChallenge = supportsS256 ? base64Url(await sha256(verifier)) : verifier;
+  const query = new URLSearchParams({client_id:auth.config.clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid profile',state:loginState,code_challenge:codeChallenge,code_challenge_method:supportsS256?'S256':'plain'});
   location.assign(`${auth.config.authority}/protocol/openid-connect/auth?${query}`);
   return new Promise(() => {});
 }
