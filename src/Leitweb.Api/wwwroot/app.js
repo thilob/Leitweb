@@ -216,7 +216,7 @@ async function selectCase(id){
   }catch(error){toast(error.message,true);}
 }
 
-function openCaseDialog(incident){const f=$('#case-form');f.reset();f.elements.incidentId.value=incident.id;f.elements.fileNumber.value=`DPW-${new Date().getFullYear()}-`;f.elements.subject.value=incident.title;$('#case-dialog').showModal();}
+function openCaseDialog(incident){const f=$('#case-form');f.reset();f.elements.incidentId.value=incident.id;f.elements.fileNumber.value=incident.referenceNumber.replace('-E-','-A-');f.elements.subject.value=incident.title;$('#case-dialog').showModal();}
 function openRelatedDialog(type,caseId){const f=$(`#${type}-form`);f.reset();f.elements.caseId.value=caseId;$(`#${type}-dialog`).showModal();}
 
 function toast(message, error=false) { const el=$('#toast'); el.textContent=message; el.style.background=error?'#8f2924':''; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }

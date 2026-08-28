@@ -38,7 +38,7 @@ public sealed class CasesController : ControllerBase
         var incident = await _db.Incidents.SingleOrDefaultAsync(x => x.Id == incidentId, ct);
         if (incident is null) return NotFound();
         var existing = await _db.Cases.AsNoTracking().SingleOrDefaultAsync(x => x.IncidentId == incidentId, ct);
-        if (existing is not null) return Conflict(new { caseId = existing.Id, message = "Für diesen Einsatz besteht bereits ein Fall." });
+        if (existing is not null) return Ok(new { existing.Id, alreadyExisted = true });
         var policeCase = new PoliceCase
         {
             OrganizationId = incident.OrganizationId, IncidentId = incidentId,
