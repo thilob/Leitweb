@@ -107,7 +107,7 @@ async function loadAll() {
       api(`/api/v1/resources?organizationId=${organizationId}`),
       api(`/api/v1/cases?organizationId=${organizationId}`)
     ]);
-    renderIncidents(); renderResources(); renderStatusBoard(); renderCases();
+    renderIncidents(); renderStatusBoard(); renderCases();
     if (state.selectedId) await selectIncident(state.selectedId);
   } catch (error) { toast(error.message, true); }
 }
@@ -155,20 +155,16 @@ async function selectIncident(id) {
   } catch (error) { toast(error.message, true); }
 }
 
-function renderResources() {
-  $('#resource-list').innerHTML = state.resources.length ? state.resources.map(r => `<article class="resource-card">
-    <div class="resource-card-head"><h3>${escapeHtml(r.callSign)}</h3><span class="badge s${r.status === 1 ? 3 : r.status === 0 ? 4 : 1}">${resourceStatus[r.status]}</span></div>
-    <p>${escapeHtml(r.name)}</p><label>Taktischen Status ändern<select class="resource-status" data-id="${r.id}" data-call="${escapeHtml(r.callSign)}" data-name="${escapeHtml(r.name)}">${resourceStatus.map((s,n)=>`<option value="${n}" ${n===r.status?'selected':''}>${s}</option>`).join('')}</select></label><button class="secondary edit-resource" data-id="${r.id}">Stammdaten bearbeiten</button>
-  </article>`).join('') : '<div class="empty"><h3>Keine Einsatzmittel</h3></div>';
-  document.querySelectorAll('.resource-status').forEach(select => select.onchange = async e => {
-    await api(`/api/v1/resources/${e.target.dataset.id}`, {method:'PUT', body:JSON.stringify({callSign:e.target.dataset.call,name:e.target.dataset.name,status:+e.target.value})});
-    toast('Einsatzmittelstatus aktualisiert'); await loadAll();
-  });
-  document.querySelectorAll('.edit-resource').forEach(button => button.onclick = () => openResourceDialog(state.resources.find(r => r.id === button.dataset.id)));
-}
-
 function renderStatusBoard(){
-  $('#status-board').innerHTML=resourceStatus.map((label,status)=>{const items=state.resources.filter(r=>r.status===status);return `<section class="status-column status-${status}"><header><span>${label}</span><strong>${items.length}</strong></header><div>${items.map(r=>`<article class="status-unit"><strong>${escapeHtml(r.callSign)}</strong><small>${escapeHtml(r.name)}</small></article>`).join('')||'<p>Keine Einsatzmittel</p>'}</div></section>`;}).join('');
+  $('#status-board').innerHTML=resourceStatus.map((label,status)=>{const items=state.resources.filter(r=>r.status===status);return `<section class="status-column status-${status}"><header><span>${label}</span><strong>${items.length}</strong></header><div>${items.map(r=>`<article class="status-unit"><strong>${escapeHtml(r.callSign)}</strong><small>${escapeHtml(r.name)}</small><label>Status<select data-resource-status="${r.id}" aria-label="Status von ${escapeHtml(r.callSign)} ändern">${resourceStatus.map((name,value)=>`<option value="${value}" ${value===r.status?'selected':''}>${name}</option>`).join('')}</select></label><button type="button" class="secondary" data-edit-resource="${r.id}">Bearbeiten</button></article>`).join('')||'<p>Keine Einsatzmittel</p>'}</div></section>`;}).join('');
+  document.querySelectorAll('[data-resource-status]').forEach(select=>select.onchange=async e=>{
+    const resource=state.resources.find(r=>r.id===e.target.dataset.resourceStatus);
+    if(!resource)return;
+    e.target.disabled=true;
+    try{await api(`/api/v1/resources/${resource.id}`,{method:'PUT',body:JSON.stringify({callSign:resource.callSign,name:resource.name,status:+e.target.value})});toast('Einsatzmittelstatus aktualisiert');await loadAll();}
+    catch(error){toast(error.message,true);await loadAll();}
+  });
+  document.querySelectorAll('[data-edit-resource]').forEach(button=>button.onclick=()=>openResourceDialog(state.resources.find(r=>r.id===button.dataset.editResource)));
 }
 
 function renderCases(){
