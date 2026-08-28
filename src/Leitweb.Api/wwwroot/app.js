@@ -66,7 +66,9 @@ async function exchangeToken(parameters) {
   auth.refreshToken = tokens.refresh_token || auth.refreshToken;
   auth.idToken = tokens.id_token || auth.idToken;
   auth.roles = tokenPayload(auth.accessToken).realm_access?.roles || [];
-  $('#new-user')?.classList.toggle('hidden', !auth.roles.includes('user-admin'));
+  const canManageUsers = auth.roles.includes('user-admin');
+  $('#new-user')?.classList.toggle('hidden', !canManageUsers);
+  $('#api-link')?.classList.toggle('hidden', !canManageUsers);
   auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
 }
 
