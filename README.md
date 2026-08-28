@@ -14,6 +14,18 @@ Die integrierte Oberfläche unter `/` bietet eine polizeiliche Einsatzlage mit S
 
 Die Anwendung bildet einen technischen Prototyp ab. Vor einer Verarbeitung realer Polizeidaten sind insbesondere Datenschutz-Folgenabschätzung, Löschkonzept, revisionssichere Auditierung, Aktenexport, qualifizierte Signatur und die jeweiligen landesrechtlichen Vorgaben umzusetzen.
 
+## Lokales Adressregister
+
+Die Einsatzortsuche verwendet einen lokalen Datenbankbestand und führt während der Bedienung keine Onlineabfragen aus. Der mitgelieferte Grundbestand umfasst amtliche Gebäudereferenzen für Wermelskirchen sowie Remscheid, Hückeswagen, Wipperfürth, Kürten, Odenthal, Burscheid und Solingen. Quelle: Geobasis NRW, Datenlizenz Deutschland – Zero – Version 2.0, abgerufen am 28.08.2026.
+
+Der Grundbestand kann bei Bedarf aktualisiert werden:
+
+```powershell
+./tools/import-addresses.ps1
+```
+
+Beim Aufbau einer leeren Datenbank wird `Data/addresses.tsv` einmalig importiert. Bestehende Datenbanken bleiben dabei unverändert; für spätere Aktualisierungen ist eine explizite Import-/Austauschmigration vorgesehen.
+
 ## Start
 
 Voraussetzung ist Docker mit Compose:

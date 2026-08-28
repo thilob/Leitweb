@@ -29,7 +29,7 @@ async function loadAll() {
       api(`/api/v1/resources?organizationId=${organizationId}`),
       api(`/api/v1/cases?organizationId=${organizationId}`)
     ]);
-    renderIncidents(); renderResources(); renderCases();
+    renderIncidents(); renderResources(); renderStatusBoard(); renderCases();
     if (state.selectedId) await selectIncident(state.selectedId);
   } catch (error) { toast(error.message, true); }
 }
@@ -89,6 +89,10 @@ function renderResources() {
   document.querySelectorAll('.edit-resource').forEach(button => button.onclick = () => openResourceDialog(state.resources.find(r => r.id === button.dataset.id)));
 }
 
+function renderStatusBoard(){
+  $('#status-board').innerHTML=resourceStatus.map((label,status)=>{const items=state.resources.filter(r=>r.status===status);return `<section class="status-column status-${status}"><header><span>${label}</span><strong>${items.length}</strong></header><div>${items.map(r=>`<article class="status-unit"><strong>${escapeHtml(r.callSign)}</strong><small>${escapeHtml(r.name)}</small></article>`).join('')||'<p>Keine Einsatzmittel</p>'}</div></section>`;}).join('');
+}
+
 function renderCases(){
   $('#case-list').innerHTML=state.cases.length?state.cases.map(c=>`<article class="incident-row ${state.selectedCaseId===c.id?'selected':''}" data-case-id="${c.id}"><span class="priority"></span><div class="incident-main"><strong>${escapeHtml(c.subject)}</strong><div class="incident-meta"><span>${escapeHtml(c.fileNumber)}</span><span>${c.personCount} Personen</span><span>${c.evidenceCount} Asservate</span></div></div><div class="incident-side"><span class="badge s${c.status}">${caseStatus[c.status]}</span><span class="count">${c.documentCount} Schreiben</span></div></article>`).join(''):'<div class="empty"><h3>Noch keine Fälle</h3><p>Ein Fall wird aus einem Einsatz heraus angelegt.</p></div>';
   document.querySelectorAll('[data-case-id]').forEach(r=>r.onclick=()=>selectCase(r.dataset.caseId));
@@ -127,4 +131,6 @@ $('#evidence-form').onsubmit=async e=>{e.preventDefault();const data=Object.from
 $('#document-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.type=+data.type;try{await api(`/api/v1/cases/${caseId}/documents`,{method:'POST',body:JSON.stringify(data)});$('#document-dialog').close();toast('Schreiben erstellt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId,documentId=data.documentId;delete data.caseId;delete data.documentId;try{await api(`/api/v1/cases/${caseId}/documents/${documentId}/dispatches`,{method:'POST',body:JSON.stringify(data)});$('#dispatch-dialog').close();toast('Schreiben abverfügt');await selectCase(caseId);}catch(error){toast(error.message,true);}};
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
+let addressTimer;
+$('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});
 loadAll();

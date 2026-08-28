@@ -10,10 +10,14 @@ public static class DevelopmentData
     public static async Task SeedAsync(LeitwebDbContext db)
     {
         if (await db.Incidents.AnyAsync()) return;
-        var resource = new OperationalResource
+        var callSigns = new[] { "Well 11/21", "Well 11/31", "Well 11/32", "Well 11/33", "Well 11/34",
+            "Well 11/35", "Well 11/36", "Well 11/37", "Well 11/38", "Well 11/81" };
+        var resources = callSigns.Select((callSign, index) => new OperationalResource
         {
-            OrganizationId = ExampleOrganizationId, CallSign = "Well 1/10", Name = "Streifenwagen"
-        };
+            OrganizationId = ExampleOrganizationId, CallSign = callSign,
+            Name = index == 0 ? "Dienstgruppenleitung" : index == callSigns.Length - 1 ? "Verkehrsunfallaufnahme" : "Streifenwagen",
+            Status = index < 6 ? ResourceStatus.Available : index < 9 ? ResourceStatus.Dispatched : ResourceStatus.Unavailable
+        }).ToArray();
         var incident = new Incident
         {
             OrganizationId = ExampleOrganizationId, ReferenceNumber = "E-2026-0001",
@@ -21,7 +25,7 @@ public static class DevelopmentData
             Description = "Eine Anwohnerin meldet eine verdächtige Person im Bereich des Marktplatzes.", Location = "Marktplatz 1, Well"
         };
         incident.StatusHistory.Add(new IncidentStatusEntry { Status = IncidentStatus.Open, ChangedBy = "system" });
-        db.AddRange(resource, incident);
+        db.AddRange(resources); db.Add(incident);
         await db.SaveChangesAsync();
     }
 }

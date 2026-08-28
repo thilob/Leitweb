@@ -13,6 +13,7 @@ public sealed class LeitwebDbContext : DbContext
     public DbSet<EvidenceItem> EvidenceItems => Set<EvidenceItem>();
     public DbSet<CaseDocument> CaseDocuments => Set<CaseDocument>();
     public DbSet<DocumentDispatch> DocumentDispatches => Set<DocumentDispatch>();
+    public DbSet<AddressEntry> Addresses => Set<AddressEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -72,6 +73,15 @@ public sealed class LeitwebDbContext : DbContext
         {
             entity.ToTable("document_dispatches"); entity.HasKey(x => x.Id);
             entity.Property(x => x.Recipient).HasMaxLength(300); entity.Property(x => x.Reference).HasMaxLength(150);
+        });
+        modelBuilder.Entity<AddressEntry>(entity =>
+        {
+            entity.ToTable("address_register"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Municipality, x.Street, x.HouseNumber }).IsUnique();
+            entity.HasIndex(x => x.Street);
+            entity.Property(x => x.Municipality).HasMaxLength(120); entity.Property(x => x.PostalCode).HasMaxLength(10);
+            entity.Property(x => x.Street).HasMaxLength(200); entity.Property(x => x.HouseNumber).HasMaxLength(30);
+            entity.Ignore(x => x.DisplayName);
         });
     }
 }
