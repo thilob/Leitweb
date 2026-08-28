@@ -54,6 +54,11 @@ using (var scope = app.Services.CreateScope())
     await AddressSeedImporter.ImportIfEmptyAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "addresses.tsv"));
 }
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
+{
+    authority = configuration["Authentication:PublicAuthority"] ?? configuration["Authentication:Authority"],
+    clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"]
+}));
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseAuthentication();

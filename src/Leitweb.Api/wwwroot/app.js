@@ -7,19 +7,72 @@ const evidenceStatus = ['Beschlagnahmt','Sichergestellt','Eingelagert','Zur Unte
 const documentTypes = ['Kurzbericht','Strafanzeige','Einsatzbericht','Zeugenvernehmung','Sicherstellungsprotokoll','Übersendungsschreiben','Abschlussbericht','Sonstiges Schreiben'];
 const caseStatus = ['Offen','In Bearbeitung','Vorgelegt','Abgeschlossen'];
 const state = { incidents: [], resources: [], cases: [], selectedId: null, selectedCaseId: null, filter: 'active', caseFilter: 'active' };
+const auth = { accessToken: null, refreshToken: null, expiresAt: 0, config: null };
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const formatDate = value => new Intl.DateTimeFormat('de-DE', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(value));
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: {'Content-Type':'application/json', ...(options.headers || {})} });
+  await refreshAccessToken();
+  const response = await fetch(path, { ...options, headers: {'Content-Type':'application/json',Authorization:`Bearer ${auth.accessToken}`, ...(options.headers || {})} });
   if (!response.ok) {
     let message = `Fehler ${response.status}`;
     try { const body = await response.json(); message = body.detail || body.title || message; } catch {}
     throw new Error(message);
   }
   return response.status === 204 || response.headers.get('content-length') === '0' ? null : response.json();
+}
+
+function base64Url(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function sha256(value) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); }
+
+async function exchangeToken(parameters) {
+  const endpoint = `${auth.config.authority}/protocol/openid-connect/token`;
+  const response = await fetch(endpoint, {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(parameters)});
+  if (!response.ok) throw new Error('Anmeldung bei Keycloak fehlgeschlagen.');
+  const tokens = await response.json();
+  auth.accessToken = tokens.access_token;
+  auth.refreshToken = tokens.refresh_token || auth.refreshToken;
+  auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
+}
+
+async function refreshAccessToken() {
+  if (auth.accessToken && Date.now() < auth.expiresAt - 30000) return;
+  if (!auth.refreshToken) return startLogin();
+  try {
+    await exchangeToken({grant_type:'refresh_token',client_id:auth.config.clientId,refresh_token:auth.refreshToken});
+  } catch { startLogin(); }
+}
+
+async function startLogin() {
+  const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
+  const loginState = base64Url(crypto.getRandomValues(new Uint8Array(24)));
+  sessionStorage.setItem('leitweb-pkce-verifier', verifier);
+  sessionStorage.setItem('leitweb-login-state', loginState);
+  const redirectUri = `${location.origin}${location.pathname}`;
+  const query = new URLSearchParams({client_id:auth.config.clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid profile',state:loginState,code_challenge:base64Url(await sha256(verifier)),code_challenge_method:'S256'});
+  location.assign(`${auth.config.authority}/protocol/openid-connect/auth?${query}`);
+  return new Promise(() => {});
+}
+
+async function initializeAuthentication() {
+  const response = await fetch('/app-config.json');
+  if (!response.ok) throw new Error('Anwendungskonfiguration konnte nicht geladen werden.');
+  auth.config = await response.json();
+  const query = new URLSearchParams(location.search);
+  const code = query.get('code');
+  if (!code) return startLogin();
+  const expectedState = sessionStorage.getItem('leitweb-login-state');
+  const verifier = sessionStorage.getItem('leitweb-pkce-verifier');
+  if (!expectedState || query.get('state') !== expectedState || !verifier) throw new Error('Ungültige Anmeldeantwort.');
+  await exchangeToken({grant_type:'authorization_code',client_id:auth.config.clientId,code,redirect_uri:`${location.origin}${location.pathname}`,code_verifier:verifier});
+  sessionStorage.removeItem('leitweb-login-state');
+  sessionStorage.removeItem('leitweb-pkce-verifier');
+  history.replaceState({}, document.title, location.pathname);
 }
 
 async function loadAll() {
@@ -136,4 +189,4 @@ $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.from
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 let addressTimer;
 $('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});
-loadAll();
+initializeAuthentication().then(loadAll).catch(error => toast(error.message, true));

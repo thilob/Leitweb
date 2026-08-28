@@ -117,3 +117,15 @@ Einsätze und Einsatzmittel tragen eine `organizationId`. Dieser erste Stand fil
 - OpenAPI/Swagger für offenen, dokumentierbaren Datenzugriff
 
 Für PostgreSQL wird das Schema über versionierte EF-Core-Migrationen verwaltet. `EnsureCreated` wird ausschließlich für die flüchtige lokale In-Memory-Vorschau verwendet.
+
+## Deployment mit Dockhand
+
+Der Stack [`docker-compose.dockhand.yml`](docker-compose.dockhand.yml) kann in Dockhand direkt aus diesem Git-Repository angelegt werden. Als Compose-Pfad wird `docker-compose.dockhand.yml` verwendet. Vor dem Deployment müssen mindestens diese Stack-Variablen gesetzt werden:
+
+- `POSTGRES_PASSWORD`: langes, zufälliges Datenbankpasswort
+- `KEYCLOAK_ADMIN_PASSWORD`: separates, langes Keycloak-Administratorpasswort
+- `KEYCLOAK_PUBLIC_URL`: vom Browser erreichbare Keycloak-URL, beispielsweise `https://auth.example.org`
+
+Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Leitweb ist standardmäßig auf Port `5000`, Keycloak auf Port `8080` veröffentlicht.
+
+Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. PostgreSQL-Daten bleiben im benannten Volume `dorfpolizei-well-data` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
