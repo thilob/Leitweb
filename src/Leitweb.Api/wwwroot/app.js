@@ -26,8 +26,25 @@ const transmittedIncidentTemplates = [
   {occasion:9,title:'Sachbeschädigung an öffentlicher Einrichtung',description:'Mehrere Beschädigungen wurden festgestellt. Tatverdächtige Personen sind nicht mehr vor Ort.'},
   {occasion:11,title:'Amtshilfe für Nachbarpräsidium',description:'Unterstützungsersuchen zur Überprüfung einer Anschrift und Feststellung anwesender Personen.'}
 ];
-const transmittedLocations = ['Dorfstraße 18, Well','Gelderner Straße 42, Well','Am Bruch 7, Well','Kapellenweg 11, Well','Maasstraße 26, Well','Bahnhofstraße 9, Kevelaer','Markt 3, Geldern'];
-const transmittingAuthorities = ['Polizeipräsidium Kleve','Polizeipräsidium Krefeld','Polizeipräsidium Duisburg','Leitstelle Kreis Kleve'];
+const transmittedLocations = [
+  'Dorfstraße 4, Well','Dorfstraße 18, Well','Dorfstraße 37, Well','Gelderner Straße 6, Well','Gelderner Straße 24, Well',
+  'Gelderner Straße 42, Well','Am Bruch 7, Well','Am Bruch 19, Well','Kapellenweg 3, Well','Kapellenweg 11, Well',
+  'Maasstraße 8, Well','Maasstraße 26, Well','Am Sportplatz 2, Well','Mühlenweg 14, Well','Heideweg 9, Well',
+  'Bahnhofstraße 9, Kevelaer','Bahnhofstraße 31, Kevelaer','Hauptstraße 17, Kevelaer','Peter-Plümpe-Platz 6, Kevelaer','Twistedener Straße 44, Kevelaer',
+  'Markt 3, Geldern','Markt 17, Geldern','Glockengasse 8, Geldern','Issumer Tor 21, Geldern','Kapellener Straße 36, Geldern',
+  'Venloer Straße 12, Geldern','Klever Straße 53, Geldern','Walbecker Straße 28, Geldern','Steinstraße 15, Geldern','Hartstraße 7, Geldern',
+  'Dorfstraße 22, Weeze','Wasserstraße 5, Weeze','Kevelaerer Straße 39, Weeze','Bahnstraße 11, Weeze','Flughafen-Ring 48, Weeze',
+  'Voßstraße 16, Goch','Brückenstraße 29, Goch','Herzogenstraße 8, Goch','Klever Straße 67, Goch','Bahnhofstraße 14, Goch',
+  'Große Straße 24, Kleve','Hagsche Straße 33, Kleve','Tiergartenstraße 7, Kleve','Emmericher Straße 58, Kleve','Bahnhofplatz 2, Kleve',
+  'Hauptstraße 31, Straelen','Gelderner Straße 18, Straelen','Venloer Straße 45, Straelen','Annastraße 9, Straelen','Markt 12, Straelen',
+  'Rathausstraße 6, Uedem','Mühlenstraße 27, Uedem','Hochstraße 41, Sonsbeck','Wallstraße 13, Xanten','Rheinpromenade 22, Emmerich am Rhein'
+];
+const transmittingAuthorities = [
+  'Kreispolizeibehörde Kleve','Kreispolizeibehörde Wesel','Kreispolizeibehörde Viersen','Kreispolizeibehörde Borken',
+  'Polizeipräsidium Krefeld','Polizeipräsidium Duisburg','Polizeipräsidium Essen','Polizeipräsidium Düsseldorf',
+  'Polizeipräsidium Mönchengladbach','Polizeipräsidium Oberhausen','Leitstelle Kreis Kleve','Leitstelle Kreis Wesel',
+  'Leitstelle Kreis Viersen','Bundespolizeiinspektion Kleve','Politie Limburg – Meldkamer Venlo','Koninklijke Marechaussee – Brigade Limburg'
+];
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
