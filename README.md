@@ -129,3 +129,16 @@ Der Stack [`docker-compose.dockhand.yml`](docker-compose.dockhand.yml) kann in D
 Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Leitweb ist standardmäßig auf Port `5000`, Keycloak auf Port `8080` veröffentlicht.
 
 Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. PostgreSQL-Daten bleiben im benannten Volume `dorfpolizei-well-data` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
+
+### Benutzerverwaltung
+
+Die einfache Benutzeranlage erscheint nur für angemeldete Benutzer mit der Keycloak-Realm-Rolle `user-admin`. Der API-Endpunkt prüft diese Rolle zusätzlich serverseitig. Neue Benutzer erhalten die normalen fachlichen Leitweb-Berechtigungen und ein beim ersten Login zu änderndes temporäres Kennwort; die Rolle `user-admin` wird nicht weitergegeben.
+
+Für den Zugriff der API auf die Keycloak Admin REST API wird im Realm `leitweb` einmalig ein eigener Service-Account eingerichtet:
+
+1. Client `leitweb-user-admin` anlegen, Client-Authentifizierung und Service-Accounts aktivieren.
+2. Dem Service-Account unter den Client-Rollen von `realm-management` die Rollen `manage-users` und `view-users` zuweisen.
+3. Das Client-Secret als Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` hinterlegen.
+4. Die Realm-Rolle `user-admin` nur den Benutzern zuweisen, die neue Konten anlegen dürfen. Nach einer Rollenzuweisung ist eine erneute Anmeldung erforderlich.
+
+Das Service-Account-Secret gehört ausschließlich in Dockhand beziehungsweise eine lokale `.env` und darf nicht in Git gespeichert werden.

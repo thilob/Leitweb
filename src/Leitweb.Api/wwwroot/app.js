@@ -7,7 +7,7 @@ const evidenceStatus = ['Beschlagnahmt','Sichergestellt','Eingelagert','Zur Unte
 const documentTypes = ['Kurzbericht','Strafanzeige','Einsatzbericht','Zeugenvernehmung','Sicherstellungsprotokoll','Übersendungsschreiben','Abschlussbericht','Sonstiges Schreiben'];
 const caseStatus = ['Offen','In Bearbeitung','Vorgelegt','Abgeschlossen'];
 const state = { incidents: [], resources: [], cases: [], selectedId: null, selectedCaseId: null, filter: 'active', caseFilter: 'active' };
-const auth = { accessToken: null, refreshToken: null, idToken: null, expiresAt: 0, config: null };
+const auth = { accessToken: null, refreshToken: null, idToken: null, roles: [], expiresAt: 0, config: null };
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -30,6 +30,13 @@ function base64Url(bytes) {
 
 async function sha256(value) { return crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); }
 
+function tokenPayload(token) {
+  try {
+    const encoded = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')));
+  } catch { return {}; }
+}
+
 async function exchangeToken(parameters) {
   const endpoint = `${auth.config.authority}/protocol/openid-connect/token`;
   const response = await fetch(endpoint, {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(parameters)});
@@ -38,6 +45,8 @@ async function exchangeToken(parameters) {
   auth.accessToken = tokens.access_token;
   auth.refreshToken = tokens.refresh_token || auth.refreshToken;
   auth.idToken = tokens.id_token || auth.idToken;
+  auth.roles = tokenPayload(auth.accessToken).realm_access?.roles || [];
+  $('#new-user')?.classList.toggle('hidden', !auth.roles.includes('user-admin'));
   auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
 }
 
@@ -47,6 +56,7 @@ function logout() {
   auth.accessToken = null;
   auth.refreshToken = null;
   auth.idToken = null;
+  auth.roles = [];
   auth.expiresAt = 0;
   sessionStorage.removeItem('leitweb-login-state');
   sessionStorage.removeItem('leitweb-pkce-verifier');
@@ -193,6 +203,7 @@ $('#case-filter').onchange=e=>{state.caseFilter=e.target.value;renderCases();};
 function openIncidentDialog(incident=null) { const f=$('#incident-form'); f.reset(); f.elements.id.value=incident?.id||''; f.elements.referenceNumber.value=incident?.referenceNumber||`DPW-E-${new Date().getFullYear()}-`; f.elements.referenceNumber.disabled=!!incident; f.elements.title.value=incident?.title||''; f.elements.location.value=incident?.location||''; f.elements.description.value=incident?.description||''; f.elements.occasion.value=incident?.occasion??2; $('#incident-dialog-title').textContent=incident?'Einsatz bearbeiten':'Neuer Einsatz'; $('#incident-submit').textContent=incident?'Änderungen speichern':'Einsatz eröffnen'; $('#incident-dialog').showModal(); }
 function openResourceDialog(resource=null) { const f=$('#resource-form'); f.reset(); f.elements.id.value=resource?.id||''; f.elements.callSign.value=resource?.callSign||''; f.elements.name.value=resource?.name||''; $('#resource-dialog-title').textContent=resource?'Einsatzmittel bearbeiten':'Einsatzmittel anlegen'; $('#resource-dialog').showModal(); }
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
+$('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModal(); };
 $('#logout').onclick=logout;
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 $('#incident-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;data.occasion=+data.occasion;try{if(id)await api(`/api/v1/incidents/${id}`,{method:'PUT',body:JSON.stringify(data)});else await api('/api/v1/incidents',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#incident-dialog').close();toast(id?'Einsatz aktualisiert':'Einsatz eröffnet');await loadAll();}catch(error){toast(error.message,true);}};
@@ -202,6 +213,7 @@ $('#person-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEn
 $('#evidence-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.status=+data.status;try{await api(`/api/v1/cases/${caseId}/evidence`,{method:'POST',body:JSON.stringify(data)});$('#evidence-dialog').close();toast('Asservat angelegt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#document-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.type=+data.type;try{await api(`/api/v1/cases/${caseId}/documents`,{method:'POST',body:JSON.stringify(data)});$('#document-dialog').close();toast('Schreiben erstellt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId,documentId=data.documentId;delete data.caseId;delete data.documentId;try{await api(`/api/v1/cases/${caseId}/documents/${documentId}/dispatches`,{method:'POST',body:JSON.stringify(data)});$('#dispatch-dialog').close();toast('Schreiben abverfügt');await selectCase(caseId);}catch(error){toast(error.message,true);}};
+$('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});e.target.reset();$('#user-dialog').close();toast('Benutzer wurde in Keycloak angelegt');}catch(error){toast(error.message,true);}};
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 let addressTimer;
 $('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});

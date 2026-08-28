@@ -74,6 +74,10 @@ services:
       Authentication__Audience: leitweb-api
       Authentication__ClientId: leitweb-api
       Authentication__RequireHttpsMetadata: ${REQUIRE_HTTPS_METADATA:-false}
+      KeycloakAdmin__BaseUrl: http://identity:8080
+      KeycloakAdmin__Realm: leitweb
+      KeycloakAdmin__ClientId: leitweb-user-admin
+      KeycloakAdmin__ClientSecret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
     ports:
       - "${LEITWEB_PORT:-5000}:8080"

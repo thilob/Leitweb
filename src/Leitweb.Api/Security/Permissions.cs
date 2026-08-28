@@ -2,6 +2,8 @@ namespace Leitweb.Api.Security;
 
 public static class Permissions
 {
+    public const string UserAdminRole = "user-admin";
+    public const string UserAdminPolicy = "user-admin";
     public const string IncidentRead = "incident.read";
     public const string IncidentCreate = "incident.create";
     public const string IncidentUpdate = "incident.update";

@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new Leitweb.Api.Serialization.DateOnlyJsonConverter()));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpClient<KeycloakUserService>();
 var useInMemoryDatabase = builder.Configuration.GetValue<bool>("Development:UseInMemoryDatabase");
 builder.Services.AddDbContext<LeitwebDbContext>(options =>
 {
@@ -42,6 +43,8 @@ builder.Services.AddAuthorization(options =>
 {
     foreach (var permission in Permissions.All)
         options.AddPolicy(permission, policy => policy.RequireClaim("permission", permission));
+    options.AddPolicy(Permissions.UserAdminPolicy, policy =>
+        policy.RequireAssertion(context => RealmRoles.HasRole(context.User, Permissions.UserAdminRole)));
 });
 
 var app = builder.Build();

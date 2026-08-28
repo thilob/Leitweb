@@ -1,0 +1,36 @@
+using Leitweb.Api.Security;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Leitweb.Api.Controllers;
+
+[ApiController, Route("api/v1/users")]
+public sealed class UsersController : ControllerBase
+{
+    private readonly KeycloakUserService _users;
+    public UsersController(KeycloakUserService users) => _users = users;
+
+    [HttpPost, Authorize(Policy = Permissions.UserAdminPolicy)]
+    public async Task<IActionResult> Create(CreateUser request, CancellationToken ct)
+    {
+        var username = request.Username?.Trim() ?? string.Empty;
+        if (username.Length < 3 || username.Length > 100 || username.Any(char.IsWhiteSpace))
+            return ValidationProblem("Der Benutzername muss 3 bis 100 Zeichen lang sein und darf keine Leerzeichen enthalten.");
+        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
+            return ValidationProblem("Vorname und Nachname sind erforderlich.");
+        if (string.IsNullOrEmpty(request.TemporaryPassword) || request.TemporaryPassword.Length < 12)
+            return ValidationProblem("Das temporäre Kennwort muss mindestens 12 Zeichen lang sein.");
+
+        var result = await _users.CreateAsync(new NewKeycloakUser(username, request.FirstName.Trim(), request.LastName.Trim(),
+            string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(), request.TemporaryPassword), ct);
+        return result switch
+        {
+            CreateKeycloakUserResult.Created => StatusCode(StatusCodes.Status201Created),
+            CreateKeycloakUserResult.AlreadyExists => Conflict(new ProblemDetails { Title = "Benutzername ist bereits vergeben." }),
+            CreateKeycloakUserResult.NotConfigured => Problem("Der Keycloak-Service-Account ist noch nicht konfiguriert.", statusCode: 503),
+            _ => Problem("Keycloak hat das Anlegen des Benutzers abgelehnt.", statusCode: 502)
+        };
+    }
+}
+
+public sealed record CreateUser(string Username, string FirstName, string LastName, string? Email, string TemporaryPassword);
