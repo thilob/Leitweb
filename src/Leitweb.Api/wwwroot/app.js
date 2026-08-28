@@ -164,7 +164,7 @@ function scheduleTransmittedIncident() {
   clearTimeout(simulationTimer);
   const frequency = $('#incident-simulation').value;
   if (frequency === 'off' || pendingTransmittedIncident) return;
-  const limits = frequency === 'high' ? [8000, 25000] : [45000, 120000];
+  const limits = frequency === 'high' ? [120000, 240000] : [420000, 780000];
   simulationTimer = setTimeout(() => {
     pendingTransmittedIncident = createTransmittedIncident();
     $('#transmission-alert').classList.remove('hidden');
