@@ -11,6 +11,22 @@ const auth = { accessToken: null, refreshToken: null, idToken: null, roles: [], 
 let liveSocket;
 let liveReconnectTimer;
 let liveReloadTimer;
+let simulationTimer;
+let pendingTransmittedIncident;
+
+const transmittedIncidentTemplates = [
+  {occasion:1,title:'Verkehrsunfall mit Sachschaden',description:'Zwei Fahrzeuge beteiligt. Die Unfallstelle ist noch nicht abgesichert.'},
+  {occasion:2,title:'Ruhestörung durch Feier',description:'Mehrere Anrufende melden anhaltend laute Musik und Personen auf der Straße.'},
+  {occasion:3,title:'Diebstahl aus Kraftfahrzeug',description:'Seitenscheibe eingeschlagen, Wertgegenstände aus dem Fahrzeug entwendet.'},
+  {occasion:4,title:'Verdacht auf Wohnungseinbruch',description:'Eine aufgebrochene Terrassentür wurde gemeldet. Ob sich Personen im Objekt befinden, ist unklar.'},
+  {occasion:5,title:'Körperverletzung im öffentlichen Raum',description:'Auseinandersetzung zwischen mehreren Personen. Rettungsdienst ist verständigt.'},
+  {occasion:7,title:'Vermisste Person',description:'Eine hilfsbedürftige Person wurde zuletzt im Ortsbereich gesehen. Fahndungsmaßnahmen laufen.'},
+  {occasion:8,title:'Verdächtige Person an Wohnhaus',description:'Eine unbekannte Person prüft wiederholt Türen und Fenster mehrerer Gebäude.'},
+  {occasion:9,title:'Sachbeschädigung an öffentlicher Einrichtung',description:'Mehrere Beschädigungen wurden festgestellt. Tatverdächtige Personen sind nicht mehr vor Ort.'},
+  {occasion:11,title:'Amtshilfe für Nachbarpräsidium',description:'Unterstützungsersuchen zur Überprüfung einer Anschrift und Feststellung anwesender Personen.'}
+];
+const transmittedLocations = ['Dorfstraße 18, Well','Gelderner Straße 42, Well','Am Bruch 7, Well','Kapellenweg 11, Well','Maasstraße 26, Well','Bahnhofstraße 9, Kevelaer','Markt 3, Geldern'];
+const transmittingAuthorities = ['Polizeipräsidium Kleve','Polizeipräsidium Krefeld','Polizeipräsidium Duisburg','Leitstelle Kreis Kleve'];
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -129,6 +145,55 @@ async function connectLiveUpdates() {
   }
 }
 
+function randomItem(items) { return items[Math.floor(Math.random() * items.length)]; }
+
+function createTransmittedIncident() {
+  const template = randomItem(transmittedIncidentTemplates);
+  const authority = randomItem(transmittingAuthorities);
+  const suffix = `${Date.now().toString().slice(-7)}${Math.floor(Math.random() * 90 + 10)}`;
+  return {
+    referenceNumber: `FREMD-${new Date().getFullYear()}-${suffix}`,
+    title: template.title,
+    occasion: template.occasion,
+    location: randomItem(transmittedLocations),
+    description: `Übermittelt durch ${authority}. ${template.description}`
+  };
+}
+
+function scheduleTransmittedIncident() {
+  clearTimeout(simulationTimer);
+  const frequency = $('#incident-simulation').value;
+  if (frequency === 'off' || pendingTransmittedIncident) return;
+  const limits = frequency === 'high' ? [8000, 25000] : [45000, 120000];
+  simulationTimer = setTimeout(() => {
+    pendingTransmittedIncident = createTransmittedIncident();
+    $('#transmission-alert').classList.remove('hidden');
+  }, limits[0] + Math.random() * (limits[1] - limits[0]));
+}
+
+function initializeIncidentSimulation() {
+  const saved = localStorage.getItem('leitweb-incident-simulation');
+  $('#incident-simulation').value = ['off','low','high'].includes(saved) ? saved : 'off';
+  scheduleTransmittedIncident();
+}
+
+function openTransmittedIncident() {
+  if (!pendingTransmittedIncident) return;
+  const incident = pendingTransmittedIncident;
+  pendingTransmittedIncident = null;
+  $('#transmission-alert').classList.add('hidden');
+  showView('incidents');
+  openIncidentDialog();
+  const form = $('#incident-form');
+  form.elements.referenceNumber.value = incident.referenceNumber;
+  form.elements.title.value = incident.title;
+  form.elements.occasion.value = incident.occasion;
+  form.elements.location.value = incident.location;
+  form.elements.description.value = incident.description;
+  $('#incident-dialog-title').textContent = 'Übermittelten Einsatz übernehmen';
+  scheduleTransmittedIncident();
+}
+
 async function loadAll() {
   try {
     [state.incidents, state.resources, state.cases] = await Promise.all([
@@ -231,6 +296,8 @@ function openResourceDialog(resource=null) { const f=$('#resource-form'); f.rese
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
 $('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModal(); };
 $('#logout').onclick=logout;
+$('#incident-simulation').onchange=e=>{localStorage.setItem('leitweb-incident-simulation',e.target.value);scheduleTransmittedIncident();};
+$('#transmission-alert').onclick=openTransmittedIncident;
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 $('#incident-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;data.occasion=+data.occasion;try{if(id)await api(`/api/v1/incidents/${id}`,{method:'PUT',body:JSON.stringify(data)});else await api('/api/v1/incidents',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#incident-dialog').close();toast(id?'Einsatz aktualisiert':'Einsatz eröffnet');await loadAll();}catch(error){toast(error.message,true);}};
 $('#resource-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;try{if(id){const current=state.resources.find(r=>r.id===id);await api(`/api/v1/resources/${id}`,{method:'PUT',body:JSON.stringify({...data,status:current.status})});}else await api('/api/v1/resources',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#resource-dialog').close();toast(id?'Einsatzmittel aktualisiert':'Einsatzmittel angelegt');await loadAll();}catch(error){toast(error.message,true);}};
@@ -243,4 +310,4 @@ $('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntr
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 let addressTimer;
 $('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});
-initializeAuthentication().then(async () => { await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
+initializeAuthentication().then(async () => { initializeIncidentSimulation(); await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));

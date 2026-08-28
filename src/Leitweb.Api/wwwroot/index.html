@@ -10,7 +10,7 @@
 <body>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">★</span><div><strong>Dorfpolizei Well</strong><small>Einsatz- und Fallbearbeitung</small></div></div>
-    <div class="system-state"><span class="pulse"></span><span>System bereit</span><time id="clock"></time><button type="button" class="logout-button" id="logout">Abmelden</button></div>
+    <div class="system-state"><label class="simulation-control">Übermittlung<select id="incident-simulation" aria-label="Häufigkeit automatisch übermittelter Einsätze"><option value="off">Aus</option><option value="low">Wenig</option><option value="high">Viel</option></select></label><button type="button" class="transmission-alert hidden" id="transmission-alert">● Neuer Einsatz übermittelt</button><span class="pulse"></span><span>System bereit</span><time id="clock"></time><button type="button" class="logout-button" id="logout">Abmelden</button></div>
   </header>
   <div class="shell">
     <nav class="sidebar" aria-label="Hauptnavigation">
