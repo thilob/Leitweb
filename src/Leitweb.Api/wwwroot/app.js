@@ -6,7 +6,7 @@ const personRoles = ['Beschuldigte Person','Tatverdächtige Person','Geschädigt
 const evidenceStatus = ['Beschlagnahmt','Sichergestellt','Eingelagert','Zur Untersuchung versandt','Herausgegeben','Vernichtet'];
 const documentTypes = ['Kurzbericht','Strafanzeige','Einsatzbericht','Zeugenvernehmung','Sicherstellungsprotokoll','Übersendungsschreiben','Abschlussbericht','Sonstiges Schreiben'];
 const caseStatus = ['Offen','In Bearbeitung','Vorgelegt','Abgeschlossen'];
-const state = { incidents: [], resources: [], cases: [], selectedId: null, selectedCaseId: null, filter: 'active' };
+const state = { incidents: [], resources: [], cases: [], selectedId: null, selectedCaseId: null, filter: 'active', caseFilter: 'active' };
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -94,7 +94,8 @@ function renderStatusBoard(){
 }
 
 function renderCases(){
-  $('#case-list').innerHTML=state.cases.length?state.cases.map(c=>`<article class="incident-row ${state.selectedCaseId===c.id?'selected':''}" data-case-id="${c.id}"><span class="priority"></span><div class="incident-main"><strong>${escapeHtml(c.subject)}</strong><div class="incident-meta"><span>${escapeHtml(c.fileNumber)}</span><span>${c.personCount} Personen</span><span>${c.evidenceCount} Asservate</span></div></div><div class="incident-side"><span class="badge s${c.status}">${caseStatus[c.status]}</span><span class="count">${c.documentCount} Schreiben</span></div></article>`).join(''):'<div class="empty"><h3>Noch keine Fälle</h3><p>Ein Fall wird aus einem Einsatz heraus angelegt.</p></div>';
+  const visible=state.caseFilter==='all'?state.cases:state.caseFilter==='active'?state.cases.filter(c=>c.status<3):state.cases.filter(c=>c.status===+state.caseFilter);
+  $('#case-list').innerHTML=visible.length?visible.map(c=>`<article class="incident-row ${state.selectedCaseId===c.id?'selected':''}" data-case-id="${c.id}"><span class="priority"></span><div class="incident-main"><strong>${escapeHtml(c.subject)}</strong><div class="incident-meta"><span>${escapeHtml(c.fileNumber)}</span><span>${c.personCount} Personen</span><span>${c.evidenceCount} Asservate</span></div></div><div class="incident-side"><span class="badge s${c.status}">${caseStatus[c.status]}</span><span class="count">${c.documentCount} Schreiben</span></div></article>`).join(''):'<div class="empty"><h3>Keine passenden Fälle</h3><p>Für den gewählten Status liegen keine Fallakten vor.</p></div>';
   document.querySelectorAll('[data-case-id]').forEach(r=>r.onclick=()=>selectCase(r.dataset.caseId));
 }
 
@@ -102,10 +103,11 @@ async function selectCase(id){
   state.selectedCaseId=id;renderCases();
   try{
     const c=await api(`/api/v1/cases/${id}`);
-    $('#case-detail').innerHTML=`<div class="detail-content"><div class="detail-top"><div><p class="eyebrow">${escapeHtml(c.fileNumber)}</p><h2>${escapeHtml(c.subject)}</h2></div><span class="badge s${c.status}">${caseStatus[c.status]}</span></div>
+    $('#case-detail').innerHTML=`<div class="detail-content"><div class="detail-top"><div><p class="eyebrow">${escapeHtml(c.fileNumber)}</p><h2>${escapeHtml(c.subject)}</h2></div><span class="badge s${c.status}">${caseStatus[c.status]}</span></div><h3 class="section-title">Fallstatus</h3><select id="case-status">${caseStatus.map((label,status)=>`<option value="${status}" ${status===c.status?'selected':''}>${label}</option>`).join('')}</select>
     <h3 class="section-title">Beteiligte Personen</h3>${c.persons.map(p=>`<div class="assignment"><div><strong>${escapeHtml(p.lastName)}, ${escapeHtml(p.firstName)}</strong><small>${personRoles[p.role]}${p.dateOfBirth?' · * '+p.dateOfBirth:''}</small></div></div>`).join('')||'<p class="detail-location">Keine Personen erfasst.</p>'}<button class="secondary" id="add-person">+ Person</button>
     <h3 class="section-title">Asservate</h3>${c.evidence.map(e=>`<div class="assignment"><div><strong>${escapeHtml(e.evidenceNumber)} · ${escapeHtml(e.description)}</strong><small>${evidenceStatus[e.status]} · ${escapeHtml(e.storageLocation)}</small></div></div>`).join('')||'<p class="detail-location">Keine Asservate erfasst.</p>'}<button class="secondary" id="add-evidence">+ Asservat</button>
     <h3 class="section-title">Schriftstücke und Abverfügungen</h3>${c.documents.map(d=>`<div class="case-document"><strong>${documentTypes[d.type]} · ${escapeHtml(d.title)}</strong><pre>${escapeHtml(d.content)}</pre><small>${d.dispatches.length?d.dispatches.map(v=>`Abverfügt an ${escapeHtml(v.recipient)} · ${formatDate(v.dispatchedAt)}`).join('<br>'):'Noch nicht abverfügt'}</small><button class="secondary dispatch-document" data-document-id="${d.id}">Abverfügen</button></div>`).join('')||'<p class="detail-location">Keine Schreiben vorhanden.</p>'}<button class="primary" id="add-document">+ Schreiben erstellen</button></div>`;
+    $('#case-status').onchange=async e=>{try{await api(`/api/v1/cases/${id}/status`,{method:'PUT',body:JSON.stringify({status:+e.target.value})});toast('Fallstatus aktualisiert');await loadAll();await selectCase(id);}catch(error){toast(error.message,true);}};
     $('#add-person').onclick=()=>openRelatedDialog('person',id); $('#add-evidence').onclick=()=>openRelatedDialog('evidence',id); $('#add-document').onclick=()=>openRelatedDialog('document',id);
     document.querySelectorAll('.dispatch-document').forEach(b=>b.onclick=()=>{const f=$('#dispatch-form');f.reset();f.elements.caseId.value=id;f.elements.documentId.value=b.dataset.documentId;$('#dispatch-dialog').showModal();});
   }catch(error){toast(error.message,true);}
@@ -119,6 +121,7 @@ function showView(name) { document.querySelectorAll('.view').forEach(v=>v.classL
 
 document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=()=>showView(n.dataset.view));
 document.querySelectorAll('.filter-chip').forEach(b => b.onclick=()=>{state.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.toggle('active',x===b));renderIncidents();});
+$('#case-filter').onchange=e=>{state.caseFilter=e.target.value;renderCases();};
 function openIncidentDialog(incident=null) { const f=$('#incident-form'); f.reset(); f.elements.id.value=incident?.id||''; f.elements.referenceNumber.value=incident?.referenceNumber||`DPW-E-${new Date().getFullYear()}-`; f.elements.referenceNumber.disabled=!!incident; f.elements.title.value=incident?.title||''; f.elements.location.value=incident?.location||''; f.elements.description.value=incident?.description||''; f.elements.occasion.value=incident?.occasion??2; $('#incident-dialog-title').textContent=incident?'Einsatz bearbeiten':'Neuer Einsatz'; $('#incident-submit').textContent=incident?'Änderungen speichern':'Einsatz eröffnen'; $('#incident-dialog').showModal(); }
 function openResourceDialog(resource=null) { const f=$('#resource-form'); f.reset(); f.elements.id.value=resource?.id||''; f.elements.callSign.value=resource?.callSign||''; f.elements.name.value=resource?.name||''; $('#resource-dialog-title').textContent=resource?'Einsatzmittel bearbeiten':'Einsatzmittel anlegen'; $('#resource-dialog').showModal(); }
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
