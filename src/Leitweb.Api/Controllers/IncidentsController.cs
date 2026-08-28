@@ -17,14 +17,14 @@ public sealed class IncidentsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<IncidentSummary>>> GetAll([FromQuery] Guid organizationId, CancellationToken ct) =>
         await _db.Incidents.AsNoTracking().Where(x => x.OrganizationId == organizationId)
             .OrderByDescending(x => x.CreatedAt).Select(x => new IncidentSummary(
-                x.Id, x.OrganizationId, x.ReferenceNumber, x.Title, x.Location, x.Status, x.CreatedAt,
+                x.Id, x.OrganizationId, x.ReferenceNumber, x.Title, x.Location, x.Occasion, x.Status, x.CreatedAt,
                 x.AssignedResources.Count)).ToListAsync(ct);
 
     [HttpGet("{id:guid}"), Authorize(Policy = Permissions.IncidentRead)]
     public async Task<ActionResult<IncidentDetails>> Get(Guid id, CancellationToken ct)
     {
         var incident = await _db.Incidents.AsNoTracking().Where(x => x.Id == id).Select(x => new IncidentDetails(
-            x.Id, x.OrganizationId, x.ReferenceNumber, x.Title, x.Description, x.Location, x.Status,
+            x.Id, x.OrganizationId, x.ReferenceNumber, x.Title, x.Description, x.Location, x.Occasion, x.Status,
             x.CreatedAt, x.UpdatedAt,
             x.StatusHistory.OrderByDescending(h => h.ChangedAt).Select(h => new StatusHistoryItem(h.Status, h.ChangedAt, h.ChangedBy)).ToList(),
             x.AssignedResources.OrderBy(a => a.Resource.CallSign).Select(a => new AssignedResource(
@@ -43,7 +43,7 @@ public sealed class IncidentsController : ControllerBase
         var incident = new Incident
         {
             OrganizationId = request.OrganizationId, ReferenceNumber = request.ReferenceNumber.Trim(),
-            Title = request.Title.Trim(), Description = request.Description.Trim(), Location = request.Location.Trim()
+            Title = request.Title.Trim(), Description = request.Description.Trim(), Location = request.Location.Trim(), Occasion = request.Occasion
         };
         incident.StatusHistory.Add(new IncidentStatusEntry { Status = incident.Status, ChangedBy = User.Identity?.Name ?? "unknown" });
         _db.Incidents.Add(incident); await _db.SaveChangesAsync(ct);
@@ -101,13 +101,13 @@ public sealed class IncidentsController : ControllerBase
     }
 }
 
-public sealed record CreateIncident(Guid OrganizationId, string ReferenceNumber, string Title, string Description, string Location);
+public sealed record CreateIncident(Guid OrganizationId, string ReferenceNumber, string Title, string Description, string Location, PoliceOccasion Occasion);
 public sealed record UpdateIncident(string Title, string Description, string Location);
 public sealed record ChangeIncidentStatus(IncidentStatus Status);
 public sealed record IncidentSummary(Guid Id, Guid OrganizationId, string ReferenceNumber, string Title, string Location,
-    IncidentStatus Status, DateTimeOffset CreatedAt, int AssignedResourceCount);
+    PoliceOccasion Occasion, IncidentStatus Status, DateTimeOffset CreatedAt, int AssignedResourceCount);
 public sealed record IncidentDetails(Guid Id, Guid OrganizationId, string ReferenceNumber, string Title, string Description,
-    string Location, IncidentStatus Status, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
+    string Location, PoliceOccasion Occasion, IncidentStatus Status, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt,
     IReadOnlyList<StatusHistoryItem> StatusHistory, IReadOnlyList<AssignedResource> AssignedResources);
 public sealed record StatusHistoryItem(IncidentStatus Status, DateTimeOffset ChangedAt, string ChangedBy);
 public sealed record AssignedResource(Guid Id, string CallSign, string Name, ResourceStatus Status, DateTimeOffset AssignedAt);

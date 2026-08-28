@@ -1,8 +1,18 @@
-# Leitweb
+# Dorfpolizei Well
 
 Erstes MVP einer containerisierten Leitstellen-Webanwendung. Der aktuelle Schnitt stellt eine versionierte REST-API für Einsätze und Einsatzmittel bereit. PostgreSQL übernimmt die strukturierte Datenhaltung, Keycloak die Anmeldung und Berechtigungs-Claims.
 
-Die integrierte Oberfläche unter `/` bietet eine Einsatzlage mit Statusführung, Einsatzanlage, Einsatzmittel-Stammdaten und taktischen Status sowie das Disponieren und Lösen von Einsatzmitteln. Sie benötigt keine separate Frontend-Buildkette.
+Die integrierte Oberfläche unter `/` bietet eine polizeiliche Einsatzlage mit Statusführung, auswählbaren Einsatzanlässen, Einsatzmittel-Stammdaten und Disposition. Aus einem Einsatz kann eine eindeutige digitale Fallakte angelegt werden. Darin werden Beteiligte nach Rollen, Asservate, typische polizeiliche Schreiben und deren Abverfügungen an vorgesetzte Stellen oder andere Behörden geführt. Sie benötigt keine separate Frontend-Buildkette.
+
+## Fallbearbeitung
+
+- Beteiligte Rollen wie beschuldigte, tatverdächtige, geschädigte, anzeigende oder bezeugende Person
+- Asservatennummer, Beschreibung, Aufbewahrungsort und Status
+- Kurzbericht, Strafanzeige, Einsatzbericht, Vernehmung, Sicherstellungsprotokoll, Übersendungs- und Abschlussbericht
+- Vorbelegte Dokumententwürfe aus Einsatz und Fallakte
+- Abverfügungen unter anderem an Staatsanwaltschaft, Gerichte, Kriminalpolizei, Ordnungsamt und Jugendamt
+
+Die Anwendung bildet einen technischen Prototyp ab. Vor einer Verarbeitung realer Polizeidaten sind insbesondere Datenschutz-Folgenabschätzung, Löschkonzept, revisionssichere Auditierung, Aktenexport, qualifizierte Signatur und die jeweiligen landesrechtlichen Vorgaben umzusetzen.
 
 ## Start
 

@@ -12,12 +12,13 @@ public static class DevelopmentData
         if (await db.Incidents.AnyAsync()) return;
         var resource = new OperationalResource
         {
-            OrganizationId = ExampleOrganizationId, CallSign = "Florian 1/46-1", Name = "Hilfeleistungslöschfahrzeug"
+            OrganizationId = ExampleOrganizationId, CallSign = "Well 1/10", Name = "Streifenwagen"
         };
         var incident = new Incident
         {
             OrganizationId = ExampleOrganizationId, ReferenceNumber = "E-2026-0001",
-            Title = "Beispieleinsatz", Description = "Automatisch erzeugte Testdaten", Location = "Musterstraße 1"
+            Title = "Verdächtige Wahrnehmung", Occasion = PoliceOccasion.SuspiciousPerson,
+            Description = "Eine Anwohnerin meldet eine verdächtige Person im Bereich des Marktplatzes.", Location = "Marktplatz 1, Well"
         };
         incident.StatusHistory.Add(new IncidentStatusEntry { Status = IncidentStatus.Open, ChangedBy = "system" });
         db.AddRange(resource, incident);

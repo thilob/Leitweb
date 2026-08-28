@@ -8,6 +8,7 @@ public sealed class Incident
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Location { get; set; } = string.Empty;
+    public PoliceOccasion Occasion { get; set; }
     public IncidentStatus Status { get; set; } = IncidentStatus.Open;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -16,6 +17,12 @@ public sealed class Incident
 }
 
 public enum IncidentStatus { Open, Dispatched, InProgress, Closed, Cancelled }
+
+public enum PoliceOccasion
+{
+    Other, TrafficAccident, Disturbance, Theft, Burglary, Assault, DomesticViolence,
+    MissingPerson, SuspiciousPerson, PropertyDamage, TrafficControl, AdministrativeAssistance
+}
 
 public sealed class IncidentStatusEntry
 {

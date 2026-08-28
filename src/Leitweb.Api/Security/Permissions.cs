@@ -7,5 +7,9 @@ public static class Permissions
     public const string IncidentUpdate = "incident.update";
     public const string ResourceRead = "resource.read";
     public const string ResourceManage = "resource.manage";
-    public static readonly string[] All = { IncidentRead, IncidentCreate, IncidentUpdate, ResourceRead, ResourceManage };
+    public const string CaseRead = "case.read";
+    public const string CaseManage = "case.manage";
+    public const string DocumentDispatch = "document.dispatch";
+    public static readonly string[] All = { IncidentRead, IncidentCreate, IncidentUpdate, ResourceRead, ResourceManage,
+        CaseRead, CaseManage, DocumentDispatch };
 }
