@@ -13,6 +13,7 @@ let liveReconnectTimer;
 let liveReloadTimer;
 let simulationTimer;
 let pendingTransmittedIncident;
+let notificationAudioContext;
 
 const transmittedIncidentTemplates = [
   {occasion:1,title:'Verkehrsunfall mit Sachschaden',description:'Zwei Fahrzeuge beteiligt. Die Unfallstelle ist noch nicht abgesichert.'},
@@ -147,6 +148,31 @@ async function connectLiveUpdates() {
 
 function randomItem(items) { return items[Math.floor(Math.random() * items.length)]; }
 
+function enableNotificationAudio() {
+  notificationAudioContext ??= new (window.AudioContext || window.webkitAudioContext)();
+  if (notificationAudioContext.state === 'suspended') notificationAudioContext.resume();
+}
+
+function playTransmissionSound() {
+  try {
+    enableNotificationAudio();
+    const start = notificationAudioContext.currentTime;
+    const gain = notificationAudioContext.createGain();
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.07, start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.55);
+    gain.connect(notificationAudioContext.destination);
+    [[659.25, 0], [783.99, 0.18]].forEach(([frequency, offset]) => {
+      const oscillator = notificationAudioContext.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start(start + offset);
+      oscillator.stop(start + offset + 0.32);
+    });
+  } catch { }
+}
+
 function createTransmittedIncident() {
   const template = randomItem(transmittedIncidentTemplates);
   const authority = randomItem(transmittingAuthorities);
@@ -168,6 +194,7 @@ function scheduleTransmittedIncident() {
   simulationTimer = setTimeout(() => {
     pendingTransmittedIncident = createTransmittedIncident();
     $('#transmission-alert').classList.remove('hidden');
+    playTransmissionSound();
   }, limits[0] + Math.random() * (limits[1] - limits[0]));
 }
 
@@ -298,6 +325,8 @@ $('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModa
 $('#logout').onclick=logout;
 $('#incident-simulation').onchange=e=>{localStorage.setItem('leitweb-incident-simulation',e.target.value);scheduleTransmittedIncident();};
 $('#transmission-alert').onclick=openTransmittedIncident;
+document.addEventListener('pointerdown',enableNotificationAudio,{once:true});
+document.addEventListener('keydown',enableNotificationAudio,{once:true});
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 $('#incident-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;data.occasion=+data.occasion;try{if(id)await api(`/api/v1/incidents/${id}`,{method:'PUT',body:JSON.stringify(data)});else await api('/api/v1/incidents',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#incident-dialog').close();toast(id?'Einsatz aktualisiert':'Einsatz eröffnet');await loadAll();}catch(error){toast(error.message,true);}};
 $('#resource-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;try{if(id){const current=state.resources.find(r=>r.id===id);await api(`/api/v1/resources/${id}`,{method:'PUT',body:JSON.stringify({...data,status:current.status})});}else await api('/api/v1/resources',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#resource-dialog').close();toast(id?'Einsatzmittel aktualisiert':'Einsatzmittel angelegt');await loadAll();}catch(error){toast(error.message,true);}};
