@@ -28,6 +28,7 @@ public sealed class UsersController : ControllerBase
             CreateKeycloakUserResult.Created => StatusCode(StatusCodes.Status201Created),
             CreateKeycloakUserResult.AlreadyExists => Conflict(new ProblemDetails { Title = "Benutzername ist bereits vergeben." }),
             CreateKeycloakUserResult.NotConfigured => Problem("Der Keycloak-Service-Account ist noch nicht konfiguriert.", statusCode: 503),
+            CreateKeycloakUserResult.UserProfileRejectedPermissions => Problem("Keycloak hat das Attribut 'permissions' verworfen. Es muss im Realm unter Realm settings > User profile als mehrwertiges, nur durch Administratoren editierbares Attribut angelegt werden.", statusCode: 502),
             _ => Problem("Keycloak hat das Anlegen des Benutzers abgelehnt.", statusCode: 502)
         };
     }

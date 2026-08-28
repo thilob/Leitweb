@@ -50,9 +50,28 @@ public sealed class KeycloakUserService
         });
         using var response = await _http.SendAsync(request, ct);
         if (response.StatusCode == HttpStatusCode.Conflict) return CreateKeycloakUserResult.AlreadyExists;
-        return response.IsSuccessStatusCode ? CreateKeycloakUserResult.Created : CreateKeycloakUserResult.KeycloakRejected;
+        if (!response.IsSuccessStatusCode) return CreateKeycloakUserResult.KeycloakRejected;
+
+        var userUrl = response.Headers.Location?.ToString();
+        if (string.IsNullOrWhiteSpace(userUrl)) return CreateKeycloakUserResult.KeycloakRejected;
+        if (userUrl.StartsWith('/')) userUrl = baseUrl + userUrl;
+        using var verifyRequest = new HttpRequestMessage(HttpMethod.Get, userUrl);
+        verifyRequest.Headers.Authorization = request.Headers.Authorization;
+        using var verifyResponse = await _http.SendAsync(verifyRequest, ct);
+        if (!verifyResponse.IsSuccessStatusCode) return CreateKeycloakUserResult.KeycloakRejected;
+        var createdUser = await verifyResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        var permissionsStored = createdUser.TryGetProperty("attributes", out var attributes)
+            && attributes.TryGetProperty("permissions", out var permissions)
+            && permissions.ValueKind == JsonValueKind.Array
+            && Permissions.All.All(expected => permissions.EnumerateArray().Any(value => value.GetString() == expected));
+        if (permissionsStored) return CreateKeycloakUserResult.Created;
+
+        using var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, userUrl);
+        deleteRequest.Headers.Authorization = request.Headers.Authorization;
+        using var deleteResponse = await _http.SendAsync(deleteRequest, ct);
+        return CreateKeycloakUserResult.UserProfileRejectedPermissions;
     }
 }
 
 public sealed record NewKeycloakUser(string Username, string FirstName, string LastName, string? Email, string TemporaryPassword);
-public enum CreateKeycloakUserResult { Created, AlreadyExists, NotConfigured, KeycloakRejected }
+public enum CreateKeycloakUserResult { Created, AlreadyExists, NotConfigured, KeycloakRejected, UserProfileRejectedPermissions }

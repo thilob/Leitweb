@@ -141,4 +141,6 @@ Für den Zugriff der API auf die Keycloak Admin REST API wird im Realm `leitweb`
 3. Das Client-Secret als Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` hinterlegen.
 4. Die Realm-Rolle `user-admin` nur den Benutzern zuweisen, die neue Konten anlegen dürfen. Nach einer Rollenzuweisung ist eine erneute Anmeldung erforderlich.
 
+Zusätzlich muss unter `Realm settings` → `User profile` ein Attribut mit dem Namen `permissions` angelegt werden. Es wird als mehrwertig konfiguriert; Benutzer und Administratoren dürfen es sehen, aber nur Administratoren bearbeiten. Keycloak 26 ignoriert unbekannte Attribute standardmäßig. Ohne diese User-Profile-Definition würde ein Benutzer zwar angelegt, sein Access-Token enthielte aber keine fachlichen Berechtigungen und die API antwortete mit HTTP 403. Leitweb prüft deshalb nach der Anlage, ob Keycloak die Berechtigungen gespeichert hat, und entfernt einen andernfalls unbrauchbaren neuen Datensatz wieder.
+
 Das Service-Account-Secret gehört ausschließlich in Dockhand beziehungsweise eine lokale `.env` und darf nicht in Git gespeichert werden.
