@@ -7,7 +7,7 @@ const evidenceStatus = ['Beschlagnahmt','Sichergestellt','Eingelagert','Zur Unte
 const documentTypes = ['Kurzbericht','Strafanzeige','Einsatzbericht','Zeugenvernehmung','Sicherstellungsprotokoll','Übersendungsschreiben','Abschlussbericht','Sonstiges Schreiben'];
 const caseStatus = ['Offen','In Bearbeitung','Vorgelegt','Abgeschlossen'];
 const state = { incidents: [], resources: [], cases: [], selectedId: null, selectedCaseId: null, filter: 'active', caseFilter: 'active' };
-const auth = { accessToken: null, refreshToken: null, expiresAt: 0, config: null };
+const auth = { accessToken: null, refreshToken: null, idToken: null, expiresAt: 0, config: null };
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -37,7 +37,20 @@ async function exchangeToken(parameters) {
   const tokens = await response.json();
   auth.accessToken = tokens.access_token;
   auth.refreshToken = tokens.refresh_token || auth.refreshToken;
+  auth.idToken = tokens.id_token || auth.idToken;
   auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
+}
+
+function logout() {
+  const query = new URLSearchParams({client_id:auth.config.clientId,post_logout_redirect_uri:`${location.origin}${location.pathname}`});
+  if (auth.idToken) query.set('id_token_hint', auth.idToken);
+  auth.accessToken = null;
+  auth.refreshToken = null;
+  auth.idToken = null;
+  auth.expiresAt = 0;
+  sessionStorage.removeItem('leitweb-login-state');
+  sessionStorage.removeItem('leitweb-pkce-verifier');
+  location.assign(`${auth.config.authority}/protocol/openid-connect/logout?${query}`);
 }
 
 async function refreshAccessToken() {
@@ -180,6 +193,7 @@ $('#case-filter').onchange=e=>{state.caseFilter=e.target.value;renderCases();};
 function openIncidentDialog(incident=null) { const f=$('#incident-form'); f.reset(); f.elements.id.value=incident?.id||''; f.elements.referenceNumber.value=incident?.referenceNumber||`DPW-E-${new Date().getFullYear()}-`; f.elements.referenceNumber.disabled=!!incident; f.elements.title.value=incident?.title||''; f.elements.location.value=incident?.location||''; f.elements.description.value=incident?.description||''; f.elements.occasion.value=incident?.occasion??2; $('#incident-dialog-title').textContent=incident?'Einsatz bearbeiten':'Neuer Einsatz'; $('#incident-submit').textContent=incident?'Änderungen speichern':'Einsatz eröffnen'; $('#incident-dialog').showModal(); }
 function openResourceDialog(resource=null) { const f=$('#resource-form'); f.reset(); f.elements.id.value=resource?.id||''; f.elements.callSign.value=resource?.callSign||''; f.elements.name.value=resource?.name||''; $('#resource-dialog-title').textContent=resource?'Einsatzmittel bearbeiten':'Einsatzmittel anlegen'; $('#resource-dialog').showModal(); }
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
+$('#logout').onclick=logout;
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 $('#incident-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;data.occasion=+data.occasion;try{if(id)await api(`/api/v1/incidents/${id}`,{method:'PUT',body:JSON.stringify(data)});else await api('/api/v1/incidents',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#incident-dialog').close();toast(id?'Einsatz aktualisiert':'Einsatz eröffnet');await loadAll();}catch(error){toast(error.message,true);}};
 $('#resource-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;try{if(id){const current=state.resources.find(r=>r.id===id);await api(`/api/v1/resources/${id}`,{method:'PUT',body:JSON.stringify({...data,status:current.status})});}else await api('/api/v1/resources',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#resource-dialog').close();toast(id?'Einsatzmittel aktualisiert':'Einsatzmittel angelegt');await loadAll();}catch(error){toast(error.message,true);}};
