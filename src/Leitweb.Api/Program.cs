@@ -48,8 +48,9 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<LeitwebDbContext>();
-    await db.Database.EnsureCreatedAsync();
-    if (useInMemoryDatabase) await DevelopmentData.SeedAsync(db);
+    if (useInMemoryDatabase) await db.Database.EnsureCreatedAsync();
+    else await db.Database.MigrateAsync();
+    if (builder.Configuration.GetValue("InitialData:Seed", useInMemoryDatabase)) await DevelopmentData.SeedAsync(db);
     await AddressSeedImporter.ImportIfEmptyAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "addresses.tsv"));
 }
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }

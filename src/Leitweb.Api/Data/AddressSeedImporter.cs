@@ -23,7 +23,7 @@ public static class AddressSeedImporter
                 Longitude = double.TryParse(columns[5], NumberStyles.Float, CultureInfo.InvariantCulture, out var lon) ? lon : null
             });
             if (batch.Count < 1000) continue;
-            db.Addresses.AddRange(batch); await db.SaveChangesAsync(ct); batch.Clear();
+            db.Addresses.AddRange(batch); await db.SaveChangesAsync(ct); batch.Clear(); db.ChangeTracker.Clear();
         }
         if (batch.Count > 0) { db.Addresses.AddRange(batch); await db.SaveChangesAsync(ct); }
     }
