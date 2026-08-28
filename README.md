@@ -128,6 +128,8 @@ Der Stack [`docker-compose.dockhand.yml`](docker-compose.dockhand.yml) kann in D
 
 Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Leitweb ist standardmäßig auf Port `5000`, Keycloak auf Port `8080` veröffentlicht.
 
+Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbindung `/ws/updates` unmittelbar an alle geöffneten Leitweb-Clients übertragen. Ein vorgeschalteter Reverse Proxy muss deshalb WebSocket-Upgrades (`Upgrade`/`Connection`) an Leitweb weiterreichen. Der Browser baut eine unterbrochene Verbindung automatisch wieder auf.
+
 Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. PostgreSQL-Daten bleiben im benannten Volume `dorfpolizei-well-data` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
 
 ### Benutzerverwaltung

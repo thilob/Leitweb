@@ -1,5 +1,6 @@
 using Leitweb.Api.Data;
 using Leitweb.Api.Domain;
+using Leitweb.Api.Realtime;
 using Leitweb.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,8 @@ namespace Leitweb.Api.Controllers;
 public sealed class IncidentsController : ControllerBase
 {
     private readonly LeitwebDbContext _db;
-    public IncidentsController(LeitwebDbContext db) => _db = db;
+    private readonly LiveUpdateHub _updates;
+    public IncidentsController(LeitwebDbContext db, LiveUpdateHub updates) { _db = db; _updates = updates; }
 
     [HttpGet, Authorize(Policy = Permissions.IncidentRead)]
     public async Task<ActionResult<IReadOnlyList<IncidentSummary>>> GetAll([FromQuery] Guid organizationId, CancellationToken ct) =>
@@ -47,6 +49,7 @@ public sealed class IncidentsController : ControllerBase
         };
         incident.StatusHistory.Add(new IncidentStatusEntry { Status = incident.Status, ChangedBy = User.Identity?.Name ?? "unknown" });
         _db.Incidents.Add(incident); await _db.SaveChangesAsync(ct);
+        await _updates.BroadcastAsync("incidents.changed");
         return CreatedAtAction(nameof(Get), new { id = incident.Id }, null);
     }
 
@@ -57,7 +60,7 @@ public sealed class IncidentsController : ControllerBase
         if (incident is null) return NotFound();
         incident.Title = request.Title.Trim(); incident.Description = request.Description.Trim();
         incident.Location = request.Location.Trim(); incident.UpdatedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(ct); return NoContent();
+        await _db.SaveChangesAsync(ct); await _updates.BroadcastAsync("incidents.changed"); return NoContent();
     }
 
     [HttpPut("{id:guid}/status"), Authorize(Policy = Permissions.IncidentUpdate)]
@@ -68,7 +71,7 @@ public sealed class IncidentsController : ControllerBase
         if (incident.Status == request.Status) return NoContent();
         incident.Status = request.Status; incident.UpdatedAt = DateTimeOffset.UtcNow;
         _db.Add(new IncidentStatusEntry { IncidentId = id, Status = request.Status, ChangedBy = User.Identity?.Name ?? "unknown" });
-        await _db.SaveChangesAsync(ct); return NoContent();
+        await _db.SaveChangesAsync(ct); await _updates.BroadcastAsync("incidents.changed"); return NoContent();
     }
 
     [HttpPost("{id:guid}/resources/{resourceId:guid}"), Authorize(Policy = Permissions.IncidentUpdate)]
@@ -86,7 +89,7 @@ public sealed class IncidentsController : ControllerBase
             incident.Status = IncidentStatus.Dispatched;
             _db.Add(new IncidentStatusEntry { IncidentId = id, Status = incident.Status, ChangedBy = User.Identity?.Name ?? "unknown" });
         }
-        await _db.SaveChangesAsync(ct); return NoContent();
+        await _db.SaveChangesAsync(ct); await _updates.BroadcastAsync("incidents-and-resources.changed"); return NoContent();
     }
 
     [HttpDelete("{id:guid}/resources/{resourceId:guid}"), Authorize(Policy = Permissions.IncidentUpdate)]
@@ -97,7 +100,7 @@ public sealed class IncidentsController : ControllerBase
         _db.Remove(assignment);
         var resource = await _db.Resources.FindAsync(new object[] { resourceId }, ct);
         if (resource is not null) resource.Status = ResourceStatus.Available;
-        await _db.SaveChangesAsync(ct); return NoContent();
+        await _db.SaveChangesAsync(ct); await _updates.BroadcastAsync("incidents-and-resources.changed"); return NoContent();
     }
 }
 

@@ -1,5 +1,6 @@
 using Leitweb.Api.Data;
 using Leitweb.Api.Domain;
+using Leitweb.Api.Realtime;
 using Leitweb.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,8 @@ namespace Leitweb.Api.Controllers;
 public sealed class ResourcesController : ControllerBase
 {
     private readonly LeitwebDbContext _db;
-    public ResourcesController(LeitwebDbContext db) => _db = db;
+    private readonly LiveUpdateHub _updates;
+    public ResourcesController(LeitwebDbContext db, LiveUpdateHub updates) { _db = db; _updates = updates; }
 
     [HttpGet, Authorize(Policy = Permissions.ResourceRead)]
     public async Task<ActionResult<IReadOnlyList<ResourceDto>>> GetAll([FromQuery] Guid organizationId, CancellationToken ct) =>
@@ -25,6 +27,7 @@ public sealed class ResourcesController : ControllerBase
             return ValidationProblem("Organisation, Funkrufname und Bezeichnung sind erforderlich.");
         var resource = new OperationalResource { OrganizationId = request.OrganizationId, CallSign = request.CallSign.Trim(), Name = request.Name.Trim() };
         _db.Resources.Add(resource); await _db.SaveChangesAsync(ct);
+        await _updates.BroadcastAsync("resources.changed");
         return Created($"/api/v1/resources/{resource.Id}", new ResourceDto(resource.Id, resource.OrganizationId, resource.CallSign, resource.Name, resource.Status));
     }
 
@@ -34,7 +37,7 @@ public sealed class ResourcesController : ControllerBase
         var resource = await _db.Resources.SingleOrDefaultAsync(x => x.Id == id, ct);
         if (resource is null) return NotFound();
         resource.CallSign = request.CallSign.Trim(); resource.Name = request.Name.Trim(); resource.Status = request.Status;
-        await _db.SaveChangesAsync(ct); return NoContent();
+        await _db.SaveChangesAsync(ct); await _updates.BroadcastAsync("resources.changed"); return NoContent();
     }
 }
 

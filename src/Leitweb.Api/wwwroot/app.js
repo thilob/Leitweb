@@ -7,7 +7,10 @@ const evidenceStatus = ['Beschlagnahmt','Sichergestellt','Eingelagert','Zur Unte
 const documentTypes = ['Kurzbericht','Strafanzeige','Einsatzbericht','Zeugenvernehmung','Sicherstellungsprotokoll','Übersendungsschreiben','Abschlussbericht','Sonstiges Schreiben'];
 const caseStatus = ['Offen','In Bearbeitung','Vorgelegt','Abgeschlossen'];
 const state = { incidents: [], resources: [], cases: [], selectedId: null, selectedCaseId: null, filter: 'active', caseFilter: 'active' };
-const auth = { accessToken: null, refreshToken: null, idToken: null, roles: [], expiresAt: 0, config: null };
+const auth = { accessToken: null, refreshToken: null, idToken: null, roles: [], expiresAt: 0, config: null, loggingOut: false };
+let liveSocket;
+let liveReconnectTimer;
+let liveReloadTimer;
 
 const $ = selector => document.querySelector(selector);
 const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -51,6 +54,10 @@ async function exchangeToken(parameters) {
 }
 
 function logout() {
+  auth.loggingOut = true;
+  clearTimeout(liveReconnectTimer);
+  clearTimeout(liveReloadTimer);
+  liveSocket?.close();
   const query = new URLSearchParams({client_id:auth.config.clientId,post_logout_redirect_uri:`${location.origin}${location.pathname}`});
   if (auth.idToken) query.set('id_token_hint', auth.idToken);
   auth.accessToken = null;
@@ -98,6 +105,28 @@ async function initializeAuthentication() {
   sessionStorage.removeItem('leitweb-login-state');
   sessionStorage.removeItem('leitweb-pkce-verifier');
   history.replaceState({}, document.title, location.pathname);
+}
+
+async function connectLiveUpdates() {
+  if (auth.loggingOut) return;
+  clearTimeout(liveReconnectTimer);
+  try {
+    await refreshAccessToken();
+    if (!auth.accessToken || auth.loggingOut || liveSocket?.readyState === WebSocket.OPEN || liveSocket?.readyState === WebSocket.CONNECTING) return;
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    liveSocket = new WebSocket(`${protocol}//${location.host}/ws/updates?access_token=${encodeURIComponent(auth.accessToken)}`);
+    liveSocket.onmessage = () => {
+      clearTimeout(liveReloadTimer);
+      liveReloadTimer = setTimeout(loadAll, 100);
+    };
+    liveSocket.onclose = () => {
+      liveSocket = null;
+      if (!auth.loggingOut) liveReconnectTimer = setTimeout(connectLiveUpdates, 2000);
+    };
+    liveSocket.onerror = () => liveSocket?.close();
+  } catch {
+    if (!auth.loggingOut) liveReconnectTimer = setTimeout(connectLiveUpdates, 2000);
+  }
 }
 
 async function loadAll() {
@@ -213,4 +242,4 @@ $('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntr
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 let addressTimer;
 $('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});
-initializeAuthentication().then(loadAll).catch(error => toast(error.message, true));
+initializeAuthentication().then(async () => { await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
