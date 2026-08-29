@@ -2,6 +2,30 @@
   "realm": "leitweb",
   "enabled": true,
   "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "user-admin",
+        "description": "Darf Benutzer anlegen und deren GIS-Rollen verwalten"
+      },
+      {
+        "name": "gis-sehen",
+        "description": "Darf GIS-Karten und freigegebene Layer sehen"
+      },
+      {
+        "name": "gis-objekte-aendern",
+        "description": "Darf GIS-Objekte sehen, anlegen und bearbeiten",
+        "composite": true,
+        "composites": { "realm": ["gis-sehen"] }
+      },
+      {
+        "name": "gis-vollzugriff",
+        "description": "Darf GIS-Quellen, Layer, Konfigurationen und Objekte verwalten",
+        "composite": true,
+        "composites": { "realm": ["gis-sehen", "gis-objekte-aendern"] }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "leitweb-api",

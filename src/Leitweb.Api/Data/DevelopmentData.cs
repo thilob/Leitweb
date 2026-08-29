@@ -29,6 +29,13 @@ public static class DevelopmentData
             incident.StatusHistory.Add(new IncidentStatusEntry { Status = IncidentStatus.Open, ChangedBy = "system" });
             db.Add(incident);
         }
+        if (!await db.GisLayers.AnyAsync())
+        {
+            db.GisLayers.AddRange(
+                new GisLayer { OrganizationId = ExampleOrganizationId, Name = "Einsatzorte", Description = "Ortsbezogene taktische Hinweise", Color = "#175e96" },
+                new GisLayer { OrganizationId = ExampleOrganizationId, Name = "Absperrbereiche", Description = "Linien und Flächen für Sperrmaßnahmen", Color = "#b3261e" },
+                new GisLayer { OrganizationId = ExampleOrganizationId, Name = "Gefahrenstellen", Description = "Temporäre und dauerhafte Gefahrenstellen", Color = "#b36a18" });
+        }
         await db.SaveChangesAsync();
     }
 }

@@ -18,7 +18,7 @@ public sealed class AddressesController : ControllerBase
         query = (query ?? string.Empty).Trim();
         if (query.Length < 2) return Ok(Array.Empty<object>());
         limit = Math.Clamp(limit, 1, 100);
-        var normalized = query.ToLower();
+        var normalized = string.Join(' ', query.Replace(',', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToLower();
         return Ok(await _db.Addresses.AsNoTracking()
             .Where(x => (x.Street + " " + x.HouseNumber + " " + x.PostalCode + " " + x.Municipality).ToLower().Contains(normalized))
             .OrderBy(x => x.Municipality).ThenBy(x => x.Street).ThenBy(x => x.HouseNumber).Take(limit)

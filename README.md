@@ -139,9 +139,17 @@ Die einfache Benutzeranlage erscheint nur für angemeldete Benutzer mit der Keyc
 Für den Zugriff der API auf die Keycloak Admin REST API wird im Realm `leitweb` einmalig ein eigener Service-Account eingerichtet:
 
 1. Client `leitweb-user-admin` anlegen, Client-Authentifizierung und Service-Accounts aktivieren.
-2. Dem Service-Account unter den Client-Rollen von `realm-management` die Rollen `manage-users` und `view-users` zuweisen.
+2. Dem Service-Account unter den Client-Rollen von `realm-management` die Rollen `manage-users`, `view-users` und `view-realm` zuweisen. `view-realm` wird benötigt, um die für Benutzer auswählbaren GIS-Rollen aufzulösen.
 3. Das Client-Secret als Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` hinterlegen.
 4. Die Realm-Rolle `user-admin` nur den Benutzern zuweisen, die neue Konten anlegen dürfen. Nach einer Rollenzuweisung ist eine erneute Anmeldung erforderlich.
+
+Benutzer mit `user-admin` können in Leitweb außerdem jedem Keycloak-Benutzer genau eine der folgenden hierarchischen GIS-Zugriffsstufen zuweisen:
+
+- `gis-sehen`: freigegebene GIS-Karten und Layer anzeigen
+- `gis-objekte-aendern`: enthält `gis-sehen` und erlaubt das Anlegen und Bearbeiten von GIS-Objekten
+- `gis-vollzugriff`: enthält beide vorherigen Rollen und ist für die spätere Verwaltung von Quellen, Layern und Kartenprofilen vorgesehen
+
+Bei einem neu importierten Realm werden diese Rollen aus `deploy/keycloak/leitweb-realm.json` angelegt. Keycloak aktualisiert einen bereits vorhandenen Realm beim Containerneustart nicht aus der Importdatei. In einem bestehenden Realm müssen die drei Rollen deshalb einmal mit denselben Namen und Composite-Beziehungen angelegt werden. Danach erscheinen sie ohne weitere Anwendungskonfiguration in der Benutzerverwaltung.
 
 Zusätzlich muss unter `Realm settings` → `User profile` ein Attribut mit dem Namen `permissions` angelegt werden. Es wird als mehrwertig konfiguriert; Benutzer und Administratoren dürfen es sehen, aber nur Administratoren bearbeiten. Keycloak 26 ignoriert unbekannte Attribute standardmäßig. Ohne diese User-Profile-Definition würde ein Benutzer zwar angelegt, sein Access-Token enthielte aber keine fachlichen Berechtigungen und die API antwortete mit HTTP 403. Leitweb prüft deshalb nach der Anlage, ob Keycloak die Berechtigungen gespeichert hat, und entfernt einen andernfalls unbrauchbaren neuen Datensatz wieder.
 

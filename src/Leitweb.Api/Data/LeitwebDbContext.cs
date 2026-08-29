@@ -14,6 +14,10 @@ public sealed class LeitwebDbContext : DbContext
     public DbSet<CaseDocument> CaseDocuments => Set<CaseDocument>();
     public DbSet<DocumentDispatch> DocumentDispatches => Set<DocumentDispatch>();
     public DbSet<AddressEntry> Addresses => Set<AddressEntry>();
+    public DbSet<GisLayer> GisLayers => Set<GisLayer>();
+    public DbSet<GisFeature> GisFeatures => Set<GisFeature>();
+    public DbSet<GisSource> GisSources => Set<GisSource>();
+    public DbSet<GisMapProfile> GisMapProfiles => Set<GisMapProfile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +86,37 @@ public sealed class LeitwebDbContext : DbContext
             entity.Property(x => x.Municipality).HasMaxLength(120); entity.Property(x => x.PostalCode).HasMaxLength(10);
             entity.Property(x => x.Street).HasMaxLength(200); entity.Property(x => x.HouseNumber).HasMaxLength(30);
             entity.Ignore(x => x.DisplayName);
+        });
+        modelBuilder.Entity<GisLayer>(entity =>
+        {
+            entity.ToTable("gis_layers"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.OrganizationId, x.Name }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(150); entity.Property(x => x.Description).HasMaxLength(500);
+            entity.Property(x => x.Color).HasMaxLength(20);
+        });
+        modelBuilder.Entity<GisFeature>(entity =>
+        {
+            entity.ToTable("gis_features"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.OrganizationId); entity.HasIndex(x => x.GisLayerId);
+            entity.HasIndex(x => x.Geometry).HasMethod("gist");
+            entity.Property(x => x.Name).HasMaxLength(200); entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.Geometry).HasColumnType("geometry(Geometry,4326)");
+            entity.Property(x => x.PropertiesJson).HasColumnType("jsonb"); entity.Property(x => x.UpdatedBy).HasMaxLength(200);
+            entity.HasOne(x => x.Layer).WithMany(x => x.Features).HasForeignKey(x => x.GisLayerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<GisSource>(entity =>
+        {
+            entity.ToTable("gis_sources"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.OrganizationId, x.Name }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(150); entity.Property(x => x.ServiceType).HasMaxLength(10);
+            entity.Property(x => x.ServiceUrl).HasMaxLength(2000); entity.Property(x => x.LayerName).HasMaxLength(500);
+        });
+        modelBuilder.Entity<GisMapProfile>(entity =>
+        {
+            entity.ToTable("gis_map_profiles"); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.OrganizationId, x.UserSubject, x.Name }).IsUnique();
+            entity.Property(x => x.UserSubject).HasMaxLength(200); entity.Property(x => x.Name).HasMaxLength(150);
+            entity.Property(x => x.ConfigurationJson).HasColumnType("jsonb");
         });
     }
 }

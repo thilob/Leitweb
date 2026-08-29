@@ -36,7 +36,7 @@ public sealed class IncidentsController : ControllerBase
     }
 
     [HttpPost, Authorize(Policy = Permissions.IncidentCreate)]
-    public async Task<ActionResult<IncidentDetails>> Create(CreateIncident request, CancellationToken ct)
+    public async Task<ActionResult> Create(CreateIncident request, CancellationToken ct)
     {
         if (request.OrganizationId == Guid.Empty || string.IsNullOrWhiteSpace(request.ReferenceNumber)
             || string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Location))
@@ -50,7 +50,7 @@ public sealed class IncidentsController : ControllerBase
         incident.StatusHistory.Add(new IncidentStatusEntry { Status = incident.Status, ChangedBy = User.Identity?.Name ?? "unknown" });
         _db.Incidents.Add(incident); await _db.SaveChangesAsync(ct);
         await _updates.BroadcastAsync("incidents.changed");
-        return CreatedAtAction(nameof(Get), new { id = incident.Id }, null);
+        return CreatedAtAction(nameof(Get), new { id = incident.Id }, new { incident.Id });
     }
 
     [HttpPut("{id:guid}"), Authorize(Policy = Permissions.IncidentUpdate)]

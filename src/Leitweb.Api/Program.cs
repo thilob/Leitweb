@@ -14,7 +14,7 @@ var useInMemoryDatabase = builder.Configuration.GetValue<bool>("Development:UseI
 builder.Services.AddDbContext<LeitwebDbContext>(options =>
 {
     if (useInMemoryDatabase) options.UseInMemoryDatabase("leitweb-development");
-    else options.UseNpgsql(builder.Configuration.GetConnectionString("Database"));
+    else options.UseNpgsql(builder.Configuration.GetConnectionString("Database"), npgsql => npgsql.UseNetTopologySuite());
 });
 
 var useTestAuthentication = builder.Environment.IsDevelopment()
@@ -56,6 +56,12 @@ builder.Services.AddAuthorization(options =>
         options.AddPolicy(permission, policy => policy.RequireClaim("permission", permission));
     options.AddPolicy(Permissions.UserAdminPolicy, policy =>
         policy.RequireAssertion(context => RealmRoles.HasRole(context.User, Permissions.UserAdminRole)));
+    options.AddPolicy(Permissions.GisViewPolicy, policy => policy.RequireAssertion(context =>
+        RealmRoles.HasAnyRole(context.User, Permissions.GisViewRole, Permissions.GisEditRole, Permissions.GisFullAccessRole)));
+    options.AddPolicy(Permissions.GisEditPolicy, policy => policy.RequireAssertion(context =>
+        RealmRoles.HasAnyRole(context.User, Permissions.GisEditRole, Permissions.GisFullAccessRole)));
+    options.AddPolicy(Permissions.GisFullAccessPolicy, policy => policy.RequireAssertion(context =>
+        RealmRoles.HasRole(context.User, Permissions.GisFullAccessRole)));
 });
 
 var app = builder.Build();

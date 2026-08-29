@@ -14,6 +14,14 @@ let liveReloadTimer;
 let simulationTimer;
 let pendingTransmittedIncident;
 let notificationAudioContext;
+let gisMap;
+let gisVectorSource;
+let gisVectorLayer;
+let gisSelect;
+let gisEditInteraction;
+let gisLayers = [];
+let gisProfiles = [];
+const gisMapLayers = new Map();
 
 const transmittedIncidentTemplates = [
   {occasion:1,title:'Verkehrsunfall mit Sachschaden',description:'Zwei Fahrzeuge beteiligt. Die Unfallstelle ist noch nicht abgesichert.'},
@@ -84,8 +92,10 @@ async function exchangeToken(parameters) {
   auth.idToken = tokens.id_token || auth.idToken;
   auth.roles = tokenPayload(auth.accessToken).realm_access?.roles || [];
   const canManageUsers = auth.roles.includes('user-admin');
+  const canViewGis = ['gis-sehen','gis-objekte-aendern','gis-vollzugriff'].some(role => auth.roles.includes(role));
   $('#new-user')?.classList.toggle('hidden', !canManageUsers);
   $('#api-link')?.classList.toggle('hidden', !canManageUsers);
+  $('#gis-nav')?.classList.toggle('hidden', !canViewGis);
   auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
 }
 
@@ -248,7 +258,7 @@ async function loadAll() {
       api(`/api/v1/cases?organizationId=${organizationId}`)
     ]);
     renderIncidents(); renderStatusBoard(); renderCases();
-    if (state.selectedId) await selectIncident(state.selectedId);
+    if (state.selectedId) await selectIncident(state.selectedId, {offerMapCenter:false});
     if (state.selectedCaseId) await selectCase(state.selectedCaseId);
   } catch (error) { toast(error.message, true); }
 }
@@ -273,7 +283,26 @@ function renderIncidents() {
   });
 }
 
-async function selectIncident(id) {
+function canViewGis() { return ['gis-sehen','gis-objekte-aendern','gis-vollzugriff'].some(role => auth.roles.includes(role)); }
+
+async function offerIncidentMapCenter(incident) {
+  if (!canViewGis() || !confirm(`Soll die Karte auf den Einsatzort "${incident.location}" zentriert werden?`)) return;
+  try {
+    const matches = await api(`/api/v1/addresses/search?query=${encodeURIComponent(incident.location)}&limit=10`);
+    const normalizedLocation = incident.location.trim().toLocaleLowerCase('de-DE');
+    const address = matches.find(item => item.displayName.trim().toLocaleLowerCase('de-DE') === normalizedLocation) || matches[0];
+    if (!address || !Number.isFinite(address.longitude) || !Number.isFinite(address.latitude)) {
+      toast('Für den Einsatzort sind keine Kartenkoordinaten hinterlegt', true);
+      return;
+    }
+    showView('gis');
+    await initializeGis();
+    gisMap.getView().animate({center:ol.proj.fromLonLat([address.longitude,address.latitude]),zoom:17,duration:500});
+    $('#gis-map-status').textContent=`Einsatzort: ${incident.location}`;
+  } catch (error) { toast(error.message, true); }
+}
+
+async function selectIncident(id, {offerMapCenter=true} = {}) {
   state.selectedId = id; renderIncidents();
   try {
     const i = await api(`/api/v1/incidents/${id}`);
@@ -293,6 +322,7 @@ async function selectIncident(id) {
     $('#make-case').onclick = () => { const existing=state.cases.find(c=>c.incidentId===id); if(existing){showView('cases');selectCase(existing.id);}else openCaseDialog(i); };
     $('#assign-button').onclick = async () => { const resourceId=$('#assign-resource').value; if(!resourceId) return toast('Bitte ein Einsatzmittel auswählen', true); await api(`/api/v1/incidents/${id}/resources/${resourceId}`,{method:'POST'}); toast('Einsatzmittel disponiert'); await loadAll(); };
     document.querySelectorAll('.unassign').forEach(b => b.onclick = async () => { await api(`/api/v1/incidents/${id}/resources/${b.dataset.id}`,{method:'DELETE'}); toast('Einsatzmittel gelöst'); await loadAll(); });
+    if (offerMapCenter) await offerIncidentMapCenter(i);
   } catch (error) { toast(error.message, true); }
 }
 
@@ -334,27 +364,110 @@ function openRelatedDialog(type,caseId){const f=$(`#${type}-form`);f.reset();f.e
 function toast(message, error=false) { const el=$('#toast'); el.textContent=message; el.style.background=error?'#8f2924':''; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
 function showView(name) { document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden')); $(`#${name}-view`).classList.remove('hidden'); document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===name)); }
 
-document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=async()=>{showView(n.dataset.view);if(n.dataset.view==='cases')await loadAll();});
+function canEditGis() { return auth.roles.includes('gis-objekte-aendern') || auth.roles.includes('gis-vollzugriff'); }
+
+async function initializeGis() {
+  if (gisMap) { gisMap.updateSize(); return; }
+  if (!globalThis.ol) { $('#gis-map-status').textContent = 'OpenLayers konnte nicht geladen werden.'; return; }
+  const [layers, sources, profiles, featureCollection] = await Promise.all([
+    api(`/api/v1/gis/layers?organizationId=${organizationId}`), api(`/api/v1/gis/sources?organizationId=${organizationId}`),
+    api(`/api/v1/gis/profiles?organizationId=${organizationId}`), api(`/api/v1/gis/features?organizationId=${organizationId}`)
+  ]);
+  gisLayers = layers; gisProfiles = profiles;
+  gisVectorSource = new ol.source.Vector({features:new ol.format.GeoJSON().readFeatures(featureCollection,{featureProjection:'EPSG:3857'})});
+  gisVectorLayer = new ol.layer.Vector({source:gisVectorSource,style:feature => {
+    const layer = gisLayers.find(x=>x.id===feature.get('layerId')); const color=layer?.color||'#175e96';
+    return new ol.style.Style({stroke:new ol.style.Stroke({color,width:3}),fill:new ol.style.Fill({color:`${color}55`}),image:new ol.style.Circle({radius:7,fill:new ol.style.Fill({color}),stroke:new ol.style.Stroke({color:'#fff',width:2})})});
+  }});
+  gisMap = new ol.Map({target:'gis-map',layers:[gisVectorLayer],view:new ol.View({center:ol.proj.fromLonLat([6.25,51.55]),zoom:11,minZoom:3,maxZoom:21})});
+  gisSelect = new ol.interaction.Select({layers:[gisVectorLayer]}); gisMap.addInteraction(gisSelect);
+  sources.forEach(addExternalGisSource);
+  renderGisControls();
+  $('#gis-edit-tools').classList.toggle('hidden',!canEditGis());
+  const defaultProfile=profiles.find(x=>x.isDefault); if(defaultProfile) applyGisProfile(defaultProfile);
+  $('#gis-map-status').textContent=`${gisVectorSource.getFeatures().length} GIS-Objekte`;
+}
+
+function addExternalGisSource(source) {
+  let mapLayer;
+  if(source.serviceType==='WMS') mapLayer=new ol.layer.Image({source:new ol.source.ImageWMS({url:source.serviceUrl,params:{LAYERS:source.layerName,TILED:false},ratio:1})});
+  else mapLayer=new ol.layer.Vector({source:new ol.source.Vector({format:new ol.format.GeoJSON(),url:`${source.serviceUrl}${source.serviceUrl.includes('?')?'&':'?'}service=WFS&version=2.0.0&request=GetFeature&typeNames=${encodeURIComponent(source.layerName)}&outputFormat=application%2Fjson&srsName=EPSG%3A3857`})});
+  mapLayer.set('catalogId',source.id); mapLayer.set('title',source.name); gisMap.getLayers().insertAt(Math.max(0,gisMap.getLayers().getLength()-1),mapLayer); gisMapLayers.set(source.id,mapLayer);
+}
+
+function renderGisControls() {
+  $('#gis-layer-list').innerHTML=[...gisMapLayers.entries()].map(([id,layer])=>`<label class="gis-layer-item"><input type="checkbox" data-map-layer="${escapeHtml(id)}" checked><span class="gis-layer-color"></span><span>${escapeHtml(layer.get('title'))}</span></label>`).join('')+
+    gisLayers.map(layer=>`<label class="gis-layer-item"><input type="checkbox" data-feature-layer="${escapeHtml(layer.id)}" checked><span class="gis-layer-color" style="background:${escapeHtml(layer.color)}"></span><span>${escapeHtml(layer.name)}</span></label>`).join('');
+  $('#gis-layer-list').querySelectorAll('[data-map-layer]').forEach(input=>input.onchange=()=>gisMapLayers.get(input.dataset.mapLayer)?.setVisible(input.checked));
+  $('#gis-layer-list').querySelectorAll('[data-feature-layer]').forEach(input=>input.onchange=()=>{const id=input.dataset.featureLayer;gisVectorSource.getFeatures().filter(f=>f.get('layerId')===id).forEach(f=>f.setStyle(input.checked?undefined:new ol.style.Style({})));});
+  $('#gis-edit-layer').innerHTML=gisLayers.filter(x=>x.isEditable).map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join('');
+  $('#gis-profile').innerHTML='<option value="">Aktuelle Konfiguration</option>'+gisProfiles.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join('');
+}
+
+function stopGisEdit() { if(gisEditInteraction){gisMap.removeInteraction(gisEditInteraction);gisEditInteraction=null;} $('#gis-map-status').textContent='Bearbeitungswerkzeug beendet'; }
+async function saveGisFeature(feature, id=null) {
+  const layerId=feature.get('layerId')||$('#gis-edit-layer').value; if(!layerId)return;
+  const geometry=new ol.format.GeoJSON().writeGeometryObject(feature.getGeometry(),{featureProjection:'EPSG:3857',dataProjection:'EPSG:4326'});
+  const body={organizationId,layerId,name:feature.get('name')||'GIS-Objekt',description:feature.get('description')||'',geometry,properties:{}};
+  if(id) await api(`/api/v1/gis/features/${id}`,{method:'PUT',body:JSON.stringify(body)});
+  else {const result=await api('/api/v1/gis/features',{method:'POST',body:JSON.stringify(body)});feature.setId(result.id);feature.set('id',result.id);feature.set('layerId',layerId);}
+}
+function startGisDraw(type) { stopGisEdit();gisEditInteraction=new ol.interaction.Draw({source:gisVectorSource,type});gisMap.addInteraction(gisEditInteraction);gisEditInteraction.once('drawend',async event=>{event.feature.set('layerId',$('#gis-edit-layer').value);event.feature.set('name',prompt('Bezeichnung des GIS-Objekts:','GIS-Objekt')||'GIS-Objekt');try{await saveGisFeature(event.feature);toast('GIS-Objekt gespeichert');}catch(error){gisVectorSource.removeFeature(event.feature);toast(error.message,true);}stopGisEdit();});$('#gis-map-status').textContent=`${type} zeichnen`;
+}
+function applyGisProfile(profile){try{const config=JSON.parse(profile.configurationJson);if(config.center)gisMap.getView().setCenter(config.center);if(config.zoom)gisMap.getView().setZoom(config.zoom);(config.sources||[]).forEach(item=>gisMapLayers.get(item.id)?.setVisible(item.visible));}catch{toast('Kartenprofil ist ungültig',true);}}
+async function saveCurrentGisProfile(){const name=prompt('Name des Kartenprofils:','Meine GIS-Lage');if(!name)return;const config={center:gisMap.getView().getCenter(),zoom:gisMap.getView().getZoom(),sources:[...gisMapLayers].map(([id,layer])=>({id,visible:layer.getVisible()}))};await api('/api/v1/gis/profiles',{method:'POST',body:JSON.stringify({organizationId,name,configurationJson:JSON.stringify(config),isDefault:false})});gisProfiles=await api(`/api/v1/gis/profiles?organizationId=${organizationId}`);renderGisControls();toast('Kartenprofil gespeichert');}
+
+async function loadUserManagement() {
+  const list = $('#user-role-list');
+  list.innerHTML = '<div class="loading">Benutzer werden geladen …</div>';
+  try {
+    const users = await api('/api/v1/users');
+    list.innerHTML = users.map(user => {
+      const selected = user.gisRoles.includes('gis-vollzugriff') ? 'gis-vollzugriff'
+        : user.gisRoles.includes('gis-objekte-aendern') ? 'gis-objekte-aendern'
+        : user.gisRoles.includes('gis-sehen') ? 'gis-sehen' : '';
+      const option = (value, label) => `<option value="${value}"${selected===value?' selected':''}>${label}</option>`;
+      return `<div class="user-role-row" data-user-id="${escapeHtml(user.id)}"><div><strong>${escapeHtml(user.username)}</strong><small>${escapeHtml([user.firstName,user.lastName].filter(Boolean).join(' ') || user.email)}</small></div><select aria-label="GIS-Berechtigung für ${escapeHtml(user.username)}">${option('','Kein GIS-Zugriff')}${option('gis-sehen','GIS sehen')}${option('gis-objekte-aendern','GIS-Objekte ändern')}${option('gis-vollzugriff','GIS-Vollzugriff')}</select><button type="button" class="secondary save-gis-role">Speichern</button></div>`;
+    }).join('') || '<p class="detail-location">Keine Benutzer vorhanden.</p>';
+    list.querySelectorAll('.save-gis-role').forEach(button => button.onclick = async () => {
+      const row = button.closest('.user-role-row');
+      button.disabled = true;
+      try {
+        await api(`/api/v1/users/${encodeURIComponent(row.dataset.userId)}/gis-role`, {method:'PUT',body:JSON.stringify({role:row.querySelector('select').value || null})});
+        toast('GIS-Berechtigung wurde aktualisiert');
+      } catch (error) { toast(error.message, true); }
+      finally { button.disabled = false; }
+    });
+  } catch (error) { list.innerHTML = `<p class="detail-location">${escapeHtml(error.message)}</p>`; }
+}
+
+document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=async()=>{showView(n.dataset.view);if(n.dataset.view==='cases')await loadAll();if(n.dataset.view==='gis')try{await initializeGis();}catch(error){toast(error.message,true);}});
 document.querySelectorAll('.filter-chip').forEach(b => b.onclick=()=>{state.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.toggle('active',x===b));renderIncidents();});
 $('#case-filter').onchange=e=>{state.caseFilter=e.target.value;renderCases();};
 function openIncidentDialog(incident=null) { const f=$('#incident-form'); f.reset(); f.elements.id.value=incident?.id||''; f.elements.referenceNumber.value=incident?.referenceNumber||`DPW-E-${new Date().getFullYear()}-`; f.elements.referenceNumber.disabled=!!incident; f.elements.title.value=incident?.title||''; f.elements.location.value=incident?.location||''; f.elements.description.value=incident?.description||''; f.elements.occasion.value=incident?.occasion??2; $('#incident-dialog-title').textContent=incident?'Einsatz bearbeiten':'Neuer Einsatz'; $('#incident-submit').textContent=incident?'Änderungen speichern':'Einsatz eröffnen'; $('#incident-dialog').showModal(); }
 function openResourceDialog(resource=null) { const f=$('#resource-form'); f.reset(); f.elements.id.value=resource?.id||''; f.elements.callSign.value=resource?.callSign||''; f.elements.name.value=resource?.name||''; $('#resource-dialog-title').textContent=resource?'Einsatzmittel bearbeiten':'Einsatzmittel anlegen'; $('#resource-dialog').showModal(); }
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
-$('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModal(); };
+$('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModal(); loadUserManagement(); };
+document.querySelectorAll('.gis-draw').forEach(button=>button.onclick=()=>startGisDraw(button.dataset.type));
+$('#gis-stop-edit').onclick=stopGisEdit;
+$('#gis-edit-selected').onclick=()=>{stopGisEdit();const features=gisSelect.getFeatures();if(!features.getLength()){toast('Zuerst ein GIS-Objekt auswählen',true);return;}gisEditInteraction=new ol.interaction.Modify({features});gisMap.addInteraction(gisEditInteraction);gisEditInteraction.on('modifyend',async event=>{try{for(const feature of event.features.getArray())await saveGisFeature(feature,feature.get('id')||feature.getId());toast('GIS-Objekt geändert');}catch(error){toast(error.message,true);}});$('#gis-map-status').textContent='Ausgewählte Geometrie ändern';};
+$('#gis-delete-selected').onclick=async()=>{const feature=gisSelect?.getFeatures().item(0);if(!feature){toast('Zuerst ein GIS-Objekt auswählen',true);return;}try{await api(`/api/v1/gis/features/${feature.get('id')||feature.getId()}?organizationId=${organizationId}`,{method:'DELETE'});gisVectorSource.removeFeature(feature);toast('GIS-Objekt gelöscht');}catch(error){toast(error.message,true);}};
+$('#save-gis-profile').onclick=()=>saveCurrentGisProfile().catch(error=>toast(error.message,true));
+$('#gis-profile').onchange=e=>{const profile=gisProfiles.find(x=>x.id===e.target.value);if(profile)applyGisProfile(profile);};
 $('#logout').onclick=logout;
 $('#incident-simulation').onchange=e=>{localStorage.setItem('leitweb-incident-simulation',e.target.value);scheduleTransmittedIncident();};
 $('#transmission-alert').onclick=openTransmittedIncident;
 document.addEventListener('pointerdown',enableNotificationAudio,{once:true});
 document.addEventListener('keydown',enableNotificationAudio,{once:true});
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
-$('#incident-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;data.occasion=+data.occasion;try{if(id)await api(`/api/v1/incidents/${id}`,{method:'PUT',body:JSON.stringify(data)});else await api('/api/v1/incidents',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#incident-dialog').close();toast(id?'Einsatz aktualisiert':'Einsatz eröffnet');await loadAll();}catch(error){toast(error.message,true);}};
+$('#incident-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;data.occasion=+data.occasion;try{let created=null;if(id)await api(`/api/v1/incidents/${id}`,{method:'PUT',body:JSON.stringify(data)});else created=await api('/api/v1/incidents',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#incident-dialog').close();toast(id?'Einsatz aktualisiert':'Einsatz eröffnet');await loadAll();if(created?.id)await selectIncident(created.id);}catch(error){toast(error.message,true);}};
 $('#resource-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const id=data.id;delete data.id;try{if(id){const current=state.resources.find(r=>r.id===id);await api(`/api/v1/resources/${id}`,{method:'PUT',body:JSON.stringify({...data,status:current.status})});}else await api('/api/v1/resources',{method:'POST',body:JSON.stringify({...data,organizationId})});e.target.reset();$('#resource-dialog').close();toast(id?'Einsatzmittel aktualisiert':'Einsatzmittel angelegt');await loadAll();}catch(error){toast(error.message,true);}};
 $('#case-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const incidentId=data.incidentId;delete data.incidentId;try{await api(`/api/v1/cases/from-incident/${incidentId}`,{method:'POST',body:JSON.stringify(data)});$('#case-dialog').close();toast('Fallakte angelegt');await loadAll();showView('cases');const c=state.cases.find(x=>x.incidentId===incidentId);if(c)selectCase(c.id);}catch(error){toast(error.message,true);}};
 $('#person-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.role=+data.role;data.dateOfBirth=data.dateOfBirth||null;try{await api(`/api/v1/cases/${caseId}/persons`,{method:'POST',body:JSON.stringify(data)});$('#person-dialog').close();toast('Person zur Fallakte übernommen');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#evidence-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.status=+data.status;try{await api(`/api/v1/cases/${caseId}/evidence`,{method:'POST',body:JSON.stringify(data)});$('#evidence-dialog').close();toast('Asservat angelegt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#document-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.type=+data.type;try{await api(`/api/v1/cases/${caseId}/documents`,{method:'POST',body:JSON.stringify(data)});$('#document-dialog').close();toast('Schreiben erstellt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId,documentId=data.documentId;delete data.caseId;delete data.documentId;try{await api(`/api/v1/cases/${caseId}/documents/${documentId}/dispatches`,{method:'POST',body:JSON.stringify(data)});$('#dispatch-dialog').close();toast('Schreiben abverfügt');await selectCase(caseId);}catch(error){toast(error.message,true);}};
-$('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});e.target.reset();$('#user-dialog').close();toast('Benutzer wurde in Keycloak angelegt');}catch(error){toast(error.message,true);}};
+$('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});e.target.reset();toast('Benutzer wurde in Keycloak angelegt');await loadUserManagement();}catch(error){toast(error.message,true);}};
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 let addressTimer;
 $('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});

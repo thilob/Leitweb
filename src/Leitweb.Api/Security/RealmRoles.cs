@@ -21,4 +21,6 @@ public static class RealmRoles
             return false;
         }
     }
+
+    public static bool HasAnyRole(ClaimsPrincipal user, params string[] roles) => roles.Any(role => HasRole(user, role));
 }

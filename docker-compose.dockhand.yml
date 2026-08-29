@@ -2,7 +2,7 @@ name: leitweb
 
 services:
   database:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.5-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: leitweb
@@ -44,7 +44,7 @@ services:
       - backend
 
   database-init:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.5-alpine
     restart: "no"
     environment:
       PGHOST: database
@@ -86,6 +86,36 @@ services:
         condition: service_healthy
       identity:
         condition: service_started
+    networks:
+      - backend
+
+  qgis-server:
+    build:
+      context: ./deploy/qgis-server
+    restart: unless-stopped
+    environment:
+      PGHOST: database
+      PGDATABASE: leitweb
+      PGUSER: leitweb
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss in Dockhand gesetzt werden}
+      QGIS_PROJECT_FILE: /projects/leitweb.qgs
+    volumes:
+      - ./deploy/qgis-server/projects:/projects:ro
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - backend
+
+  qgis-web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "${QGIS_PORT:-8090}:8080"
+    volumes:
+      - ./deploy/qgis-server/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - qgis-server
     networks:
       - backend
 

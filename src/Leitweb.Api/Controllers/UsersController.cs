@@ -10,6 +10,15 @@ public sealed class UsersController : ControllerBase
     private readonly KeycloakUserService _users;
     public UsersController(KeycloakUserService users) => _users = users;
 
+    [HttpGet, Authorize(Policy = Permissions.UserAdminPolicy)]
+    public async Task<IActionResult> GetAll(CancellationToken ct)
+    {
+        var users = await _users.GetUsersAsync(ct);
+        return users is null
+            ? Problem("Der Keycloak-Service-Account ist noch nicht konfiguriert.", statusCode: 503)
+            : Ok(users);
+    }
+
     [HttpPost, Authorize(Policy = Permissions.UserAdminPolicy)]
     public async Task<IActionResult> Create(CreateUser request, CancellationToken ct)
     {
@@ -32,6 +41,23 @@ public sealed class UsersController : ControllerBase
             _ => Problem("Keycloak hat das Anlegen des Benutzers abgelehnt.", statusCode: 502)
         };
     }
+
+    [HttpPut("{userId}/gis-role"), Authorize(Policy = Permissions.UserAdminPolicy)]
+    public async Task<IActionResult> SetGisRole(string userId, SetGisRole request, CancellationToken ct)
+    {
+        var role = string.IsNullOrWhiteSpace(request.Role) ? null : request.Role.Trim();
+        var result = await _users.SetGisRoleAsync(userId, role, ct);
+        return result switch
+        {
+            UpdateGisRolesResult.Updated => NoContent(),
+            UpdateGisRolesResult.InvalidRole => ValidationProblem("Die angegebene GIS-Rolle ist nicht zulässig."),
+            UpdateGisRolesResult.UserNotFound => NotFound(),
+            UpdateGisRolesResult.NotConfigured => Problem("Der Keycloak-Service-Account ist noch nicht konfiguriert.", statusCode: 503),
+            UpdateGisRolesResult.RolesNotConfigured => Problem("Die GIS-Rollen sind im Keycloak-Realm noch nicht eingerichtet.", statusCode: 503),
+            _ => Problem("Keycloak hat die Änderung der GIS-Rolle abgelehnt.", statusCode: 502)
+        };
+    }
 }
 
 public sealed record CreateUser(string Username, string FirstName, string LastName, string? Email, string TemporaryPassword);
+public sealed record SetGisRole(string? Role);

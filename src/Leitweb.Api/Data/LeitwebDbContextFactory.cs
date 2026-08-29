@@ -8,7 +8,7 @@ public sealed class LeitwebDbContextFactory : IDesignTimeDbContextFactory<Leitwe
     public LeitwebDbContext CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<LeitwebDbContext>()
-            .UseNpgsql("Host=localhost;Database=leitweb;Username=leitweb;Password=design-time-only")
+            .UseNpgsql("Host=localhost;Database=leitweb;Username=leitweb;Password=design-time-only", npgsql => npgsql.UseNetTopologySuite())
             .Options;
         return new LeitwebDbContext(options);
     }

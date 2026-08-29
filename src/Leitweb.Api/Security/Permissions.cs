@@ -4,6 +4,13 @@ public static class Permissions
 {
     public const string UserAdminRole = "user-admin";
     public const string UserAdminPolicy = "user-admin";
+    public const string GisViewRole = "gis-sehen";
+    public const string GisEditRole = "gis-objekte-aendern";
+    public const string GisFullAccessRole = "gis-vollzugriff";
+    public const string GisViewPolicy = "gis-sehen";
+    public const string GisEditPolicy = "gis-objekte-aendern";
+    public const string GisFullAccessPolicy = "gis-vollzugriff";
+    public static readonly string[] GisRoles = { GisViewRole, GisEditRole, GisFullAccessRole };
     public const string IncidentRead = "incident.read";
     public const string IncidentCreate = "incident.create";
     public const string IncidentUpdate = "incident.update";
