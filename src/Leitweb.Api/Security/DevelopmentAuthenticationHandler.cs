@@ -10,7 +10,7 @@ public sealed class DevelopmentAuthenticationHandler : AuthenticationHandler<Aut
     public const string SchemeName = "Development";
 
     public DevelopmentAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger,
-        UrlEncoder encoder, ISystemClock clock) : base(options, logger, encoder, clock) { }
+        UrlEncoder encoder) : base(options, logger, encoder) { }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {

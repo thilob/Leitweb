@@ -154,3 +154,21 @@ Bei einem neu importierten Realm werden diese Rollen aus `deploy/keycloak/leitwe
 Zusätzlich muss unter `Realm settings` → `User profile` ein Attribut mit dem Namen `permissions` angelegt werden. Es wird als mehrwertig konfiguriert; Benutzer und Administratoren dürfen es sehen, aber nur Administratoren bearbeiten. Keycloak 26 ignoriert unbekannte Attribute standardmäßig. Ohne diese User-Profile-Definition würde ein Benutzer zwar angelegt, sein Access-Token enthielte aber keine fachlichen Berechtigungen und die API antwortete mit HTTP 403. Leitweb prüft deshalb nach der Anlage, ob Keycloak die Berechtigungen gespeichert hat, und entfernt einen andernfalls unbrauchbaren neuen Datensatz wieder.
 
 Das Service-Account-Secret gehört ausschließlich in Dockhand beziehungsweise eine lokale `.env` und darf nicht in Git gespeichert werden.
+
+## GIS-Compose-Stack
+
+Für einen neuen, vom bisherigen lokalen Stack getrennten GIS-Betrieb steht [`compose.gis.yml`](compose.gis.yml) bereit. Der Stack verwendet den Compose-Projektnamen `dorfpolizei-well-gis` und das eigene Volume `dorfpolizei-well-gis-data`. Er enthält Leitweb auf .NET 10, PostGIS, Keycloak, QGIS Server und ein Nginx-Gateway für dessen OGC-Endpunkt.
+
+```bash
+cp .env.example .env
+# Passwörter und KEYCLOAK_PUBLIC_URL in .env ersetzen
+docker compose -f compose.gis.yml config
+docker compose -f compose.gis.yml up --build -d
+docker compose -f compose.gis.yml ps
+```
+
+Erreichbar sind anschließend Leitweb unter `http://localhost:5000`, Keycloak unter der in `KEYCLOAK_PUBLIC_URL` gesetzten Adresse und QGIS Server unter `http://localhost:8090/ows`. Für einen entfernten Host müssen `KEYCLOAK_PUBLIC_URL` sowie gegebenenfalls die veröffentlichten Ports vor dem ersten Realm-Import korrekt gesetzt sein.
+
+QGIS-Projekte liegen unter `deploy/qgis-server/projects` und werden schreibgeschützt in den Server eingebunden. Das veröffentlichte Standardprojekt ist `leitweb.qgs`. Eigene, zuvor mit QGIS Desktop geprüfte Projekte können dort versioniert abgelegt werden; die Auswahl erfolgt über `QGIS_PROJECT_FILE` in der Compose-Datei. Datenbankzustand, Projekte und Containerkonfiguration sind getrennt, sodass dieselben Artefakte später in PersistentVolume, ConfigMap und Deployments eines Kubernetes-Stacks überführt werden können.
+
+Vor einem öffentlichen Betrieb gehören Leitweb, Keycloak und QGIS Server hinter einen TLS-fähigen Reverse Proxy. Der QGIS-Port veröffentlicht den OGC-Endpunkt derzeit direkt und besitzt keine eigene Keycloak-Prüfung; fachliche Schreibzugriffe erfolgen deshalb ausschließlich über die rollenbasierte Leitweb-API.

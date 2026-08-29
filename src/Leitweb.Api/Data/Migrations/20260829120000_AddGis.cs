@@ -1,10 +1,13 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace Leitweb.Api.Data.Migrations;
 
+[DbContext(typeof(LeitwebDbContext))]
+[Migration("20260829120000_AddGis")]
 public partial class AddGis : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

@@ -3,6 +3,7 @@ using System;
 using Leitweb.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Leitweb.Api.Data.Migrations
 {
     [DbContext(typeof(LeitwebDbContext))]
-    partial class LeitwebDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829192937_SyncGisModelSnapshot")]
+    partial class SyncGisModelSnapshot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
