@@ -187,3 +187,16 @@ Ein gelöschtes, aber in der OpenLayers-Select-Interaktion noch ausgewähltes Fe
 - Create-API verlangt keine vom Client vorgegebene Einsatznummer mehr
 - Löschen einer bereits fehlenden GIS-GUID: HTTP 204
 - GIS-FeatureCollection nach dem gemeldeten Löschvorgang leer; ausgeliefertes Frontend enthält Auswahlbereinigung und synchrones Redraw
+
+## Fortführung: Navigation vom GIS-Einsatzmarker (30.08.2026)
+
+Die Marker aktiver Einsätze dienen nun auch als direkter Einstieg in die Einsatzbearbeitung. Ein Klick auf den Kreis oder das zugehörige Label wechselt von der GIS-Lage in die Einsatzansicht und lädt dort den anhand seiner internen ID eindeutig zugeordneten Einsatz. Dabei wird die bereits ermittelte Kartenposition nicht erneut zur Übernahme angeboten.
+
+Die Trefferprüfung ist auf die Ebene `Aktive Einsatzorte` beschränkt und verwendet eine zusätzliche Pixeltoleranz, damit insbesondere die Beschriftungen zuverlässig anklickbar sind. Über einem klickbaren Einsatzmarker zeigt ein Handzeiger die mögliche Navigation an. Editierbare GIS-Flächen und externe QGIS-/WMS-Layer bleiben von diesem Verhalten unberührt.
+
+### Verifikation dieses Stands
+
+- JavaScript-Syntax und Diff geprüft
+- API-Image erfolgreich neu gebaut und Container neu gestartet
+- API-Readiness nach Containerneustart: HTTP 200
+- Ausgeliefertes `app.js` enthält den Click-Handler einschließlich Marker-ID und Treffertoleranz

@@ -444,6 +444,8 @@ async function initializeGis() {
   gisMap = new ol.Map({target:'gis-map',layers:[gisVectorLayer,gisIncidentLayer],view:new ol.View({center:ol.proj.fromLonLat([6.25,51.55]),zoom:11,minZoom:3,maxZoom:21})});
   gisMapLayers.set('incidents:active',gisIncidentLayer);
   gisSelect = new ol.interaction.Select({layers:[gisVectorLayer]}); gisMap.addInteraction(gisSelect);
+  gisMap.on('singleclick',event=>{const feature=gisMap.forEachFeatureAtPixel(event.pixel,item=>item,{layerFilter:layer=>layer===gisIncidentLayer,hitTolerance:8});const incidentId=feature?.get('incidentId');if(incidentId){showView('incidents');selectIncident(incidentId,{offerMapCenter:false});}});
+  gisMap.on('pointermove',event=>{if(event.dragging)return;const hit=gisMap.hasFeatureAtPixel(event.pixel,{layerFilter:layer=>layer===gisIncidentLayer,hitTolerance:8});gisMap.getTargetElement().style.cursor=hit?'pointer':'';});
   await refreshIncidentGisLayer();
   if (gisIncidentSource.getFeatures().length) gisMap.getView().fit(gisIncidentSource.getExtent(),{padding:[80,80,80,80],maxZoom:16,duration:400});
   [...sources,...qgisLayers].forEach(addExternalGisSource);
