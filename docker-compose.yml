@@ -55,7 +55,8 @@ services:
 
   api:
     build:
-      context: ./src/Leitweb.Api
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Development

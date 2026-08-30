@@ -88,3 +88,43 @@ Die Anwendung ist dann unter `http://localhost:5000` erreichbar.
 6. Automatisierte API-, UI- und Container-Integrationstests einführen.
 
 Arbeite autonom weiter, aber behandle Datenschutz, Zugriffsrechte, Datenlöschung und öffentlich erreichbare Konfigurationen als sicherheitskritisch. Nach Änderungen Build und passende Kernabläufe prüfen sowie den Branch nur auf ausdrücklichen Wunsch committen oder pushen.
+
+## Fortführung: GIS-Stand und lauffähiger Compose-Betrieb (30.08.2026)
+
+Die vorstehenden Angaben dokumentieren den ursprünglichen Stand und sind in mehreren Punkten überholt. Weitergearbeitet wird aktuell auf dem Branch `Dorfpolizei-Well-mit-GIS`.
+
+### Inzwischen umgesetzt
+
+- Die Anwendung verwendet .NET 10 statt .NET 6. `global.json` verlangt SDK 10.0.111; der vorgesehene Docker-Build besitzt ein passendes SDK.
+- Browser-Anmeldung über Keycloak mit Authorization Code Flow und PKCE ist implementiert. Access- und Refresh-Token werden nur im Speicher gehalten; der Access-Token wird auch für die authentifizierte WebSocket-Verbindung `/ws/updates` verwendet.
+- Der lokale Compose-Standard bleibt ein ausdrücklich nicht für die Öffentlichkeit bestimmter Development-Testbetrieb. `/app-config.json` veröffentlicht dafür `useTestAuthentication`. Das Frontend überspringt in diesem Modus Keycloak, lädt die Einsatzlage sofort und verwendet keine fingierten Bearer-Token.
+- Der Development-Benutzer besitzt alle fachlichen Permissions sowie `user-admin` und `gis-vollzugriff`, damit Benutzerverwaltung und GIS im lokalen Referenzbetrieb geprüft werden können. Außerhalb dieses Modus bleiben Keycloak und die dort vergebenen Rollen maßgeblich.
+- PostgreSQL wurde auf PostGIS umgestellt. GIS-Datenmodelle, Migrationen und rollenbasierte API-Endpunkte für Layer, GeoJSON-Objekte und Kartenprofile sind vorhanden.
+- Die Oberfläche enthält eine GIS-Lage auf Basis von OpenLayers. Adressen aus dem lokalen Register können zur Positionierung eines Einsatzortes verwendet werden.
+- Der Stack enthält QGIS Server und ein vorgeschaltetes Nginx-Gateway. Das Gateway stellt `/health`, eine neutrale Startantwort unter `/` und den FastCGI-OWS-Pfad `/ows` bereit.
+- Der Docker-Build verwendet den Repository-Root und das Root-`Dockerfile`, damit das .NET-10-Projekt mit allen benötigten Dateien gebaut wird.
+
+### Verifizierter lokaler Stack
+
+`docker compose up --build -d` wurde auf Docker Desktop/WSL2 tatsächlich ausgeführt. API, PostGIS, Keycloak, QGIS Server und Nginx starten. Die Datenbank ist healthy, `database-init` endet mit Exit-Code 0, `/health/ready` liefert HTTP 200 und Einsatz-, Einsatzmittel- sowie GIS-Layer-API liefern Daten. Das benannte Volume `dorfpolizei-well-data` blieb bei den Tests erhalten.
+
+Beim Start kann die API einmalig melden, dass PostgreSQL noch startet; die Compose-Restart-Policy lässt sie danach erfolgreich hochfahren. Außerdem meldet das schlanke Runtime-Image eine fehlende optionale `libgssapi_krb5.so.2`; normale PostgreSQL-Verbindungen funktionieren dennoch.
+
+### Noch offen / bekannte Einschränkungen
+
+- Unter `deploy/qgis-server/projects` fehlt derzeit die konfigurierte Datei `leitweb.qgs`. Das QGIS-Gateway und der Serverprozess laufen, ein WMS-`GetCapabilities` auf `/ows` endet deshalb aber mit HTTP 500 (`Unable to open /projects/leitweb.qgs`). Die integrierte Leitweb-GIS-API ist davon unabhängig funktionsfähig.
+- OpenLayers wird derzeit von jsDelivr geladen. Für einen vollständig abgeschotteten Betrieb sollte die Bibliothek lokal ausgeliefert und mit einer Content-Security-Policy abgesichert werden.
+- Der lokale Development-Modus gewährt absichtlich umfassende Rechte. Er darf nicht öffentlich veröffentlicht werden. Für reale Deployments müssen Testauthentifizierung und Testdaten deaktiviert, TLS erzwungen und Keycloak-Rollen korrekt administriert werden.
+- Es fehlen weiterhin automatisierte API-, Browser- und Compose-Integrationstests sowie Auditierung, Löschkonzept, sichere Secret-Verwaltung und verbindliche Mandantenzuordnung aus dem Token.
+- Auf dem aktuellen Windows-Host ist lokal nur das .NET-6-SDK installiert. Builds werden deshalb momentan reproduzierbar über das .NET-10-Docker-Build-Image geprüft.
+
+### Wichtige GIS-Dateien
+
+- `compose.gis.yml`: separater GIS-Compose-Stack
+- `deploy/qgis-server/Dockerfile` und `start-qgis-server.sh`: QGIS-Server-Image
+- `deploy/qgis-server/nginx.conf`: OWS-Gateway
+- `deploy/qgis-server/projects/`: Ablage für versionierte, mit QGIS Desktop geprüfte Projekte
+- `src/Leitweb.Api/Controllers/GisController.cs`: GIS-Layer, Features und Profile
+- `src/Leitweb.Api/Domain/GisModels.cs`: GIS-Domänenmodell
+- `src/Leitweb.Api/Data/Migrations/20260829120000_AddGis.cs`: PostGIS-Erweiterung und GIS-Schema
+- `src/Leitweb.Api/wwwroot/app.js`: OpenLayers-Karte, Rollenprüfung und Karteninteraktion

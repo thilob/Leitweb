@@ -77,7 +77,8 @@ if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
 {
     authority = configuration["Authentication:PublicAuthority"] ?? configuration["Authentication:Authority"],
-    clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"]
+    clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"],
+    useTestAuthentication
 }));
 app.UseDefaultFiles();
 app.UseStaticFiles();

@@ -14,7 +14,11 @@ public sealed class DevelopmentAuthenticationHandler : AuthenticationHandler<Aut
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var claims = new List<Claim> { new(ClaimTypes.Name, "local-dispatcher") };
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.Name, "local-dispatcher"),
+            new("realm_access", "{\"roles\":[\"user-admin\",\"gis-vollzugriff\"]}")
+        };
         claims.AddRange(Permissions.All.Select(permission => new Claim("permission", permission)));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));

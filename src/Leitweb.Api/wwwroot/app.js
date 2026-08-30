@@ -60,7 +60,8 @@ const formatDate = value => new Intl.DateTimeFormat('de-DE', {day:'2-digit',mont
 
 async function api(path, options = {}) {
   await refreshAccessToken();
-  const response = await fetch(path, { ...options, headers: {'Content-Type':'application/json',Authorization:`Bearer ${auth.accessToken}`, ...(options.headers || {})} });
+  const authorization = auth.accessToken ? {Authorization:`Bearer ${auth.accessToken}`} : {};
+  const response = await fetch(path, { ...options, headers: {'Content-Type':'application/json',...authorization, ...(options.headers || {})} });
   if (!response.ok) {
     let message = `Fehler ${response.status}`;
     try { const body = await response.json(); message = body.detail || body.title || message; } catch {}
@@ -100,6 +101,10 @@ async function exchangeToken(parameters) {
 }
 
 function logout() {
+  if (auth.config?.useTestAuthentication) {
+    location.reload();
+    return;
+  }
   auth.loggingOut = true;
   clearTimeout(liveReconnectTimer);
   clearTimeout(liveReloadTimer);
@@ -117,6 +122,7 @@ function logout() {
 }
 
 async function refreshAccessToken() {
+  if (auth.config?.useTestAuthentication) return;
   if (auth.accessToken && Date.now() < auth.expiresAt - 30000) return;
   if (!auth.refreshToken) return startLogin();
   try {
@@ -141,6 +147,13 @@ async function initializeAuthentication() {
   const response = await fetch('/app-config.json');
   if (!response.ok) throw new Error('Anwendungskonfiguration konnte nicht geladen werden.');
   auth.config = await response.json();
+  if (auth.config.useTestAuthentication) {
+    auth.roles = ['user-admin', 'gis-vollzugriff'];
+    $('#new-user')?.classList.remove('hidden');
+    $('#api-link')?.classList.remove('hidden');
+    $('#gis-nav')?.classList.remove('hidden');
+    return;
+  }
   const query = new URLSearchParams(location.search);
   const code = query.get('code');
   if (!code) return startLogin();
@@ -158,9 +171,10 @@ async function connectLiveUpdates() {
   clearTimeout(liveReconnectTimer);
   try {
     await refreshAccessToken();
-    if (!auth.accessToken || auth.loggingOut || liveSocket?.readyState === WebSocket.OPEN || liveSocket?.readyState === WebSocket.CONNECTING) return;
+    if ((!auth.accessToken && !auth.config?.useTestAuthentication) || auth.loggingOut || liveSocket?.readyState === WebSocket.OPEN || liveSocket?.readyState === WebSocket.CONNECTING) return;
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    liveSocket = new WebSocket(`${protocol}//${location.host}/ws/updates?access_token=${encodeURIComponent(auth.accessToken)}`);
+    const tokenQuery = auth.accessToken ? `?access_token=${encodeURIComponent(auth.accessToken)}` : '';
+    liveSocket = new WebSocket(`${protocol}//${location.host}/ws/updates${tokenQuery}`);
     liveSocket.onmessage = () => {
       clearTimeout(liveReloadTimer);
       liveReloadTimer = setTimeout(loadAll, 100);
