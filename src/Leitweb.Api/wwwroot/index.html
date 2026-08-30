@@ -56,7 +56,7 @@
 
   <dialog id="incident-dialog">
     <form id="incident-form"><input type="hidden" name="id"><div class="dialog-head"><div><p class="eyebrow">Vorgang bearbeiten</p><h2 id="incident-dialog-title">Neuer Einsatz</h2></div><button type="button" class="icon-button close-dialog">×</button></div>
-      <label>Einsatznummer<input name="referenceNumber" required maxlength="50" placeholder="E-2026-0002"></label>
+      <label>Einsatznummer<input name="referenceNumber" readonly aria-describedby="incident-number-hint"><small id="incident-number-hint">Wird beim Speichern automatisch auf Sekundenbasis vergeben.</small></label>
       <label>Stichwort / Titel<input name="title" required maxlength="200" placeholder="z. B. Verdächtige Wahrnehmung"></label>
       <label>Einsatzanlass<select name="occasion" required><option value="3">Diebstahl</option><option value="4">Einbruch</option><option value="5">Körperverletzung</option><option value="6">Häusliche Gewalt</option><option value="1">Verkehrsunfall</option><option value="2">Ruhestörung</option><option value="7">Vermisste Person</option><option value="8">Verdächtige Person / Wahrnehmung</option><option value="9">Sachbeschädigung</option><option value="10">Verkehrskontrolle</option><option value="11">Amtshilfe</option><option value="0">Sonstiger Anlass</option></select></label>
       <label>Einsatzort<input name="location" list="address-suggestions" autocomplete="off" required maxlength="500" placeholder="Straße oder Hausnummer eingeben"></label><datalist id="address-suggestions"></datalist>

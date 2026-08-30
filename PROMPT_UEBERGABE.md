@@ -162,3 +162,28 @@ Der geschützte Endpunkt `/api/v1/gis/qgis-layers` ruft serverseitig über `Gis:
 - dynamischer API-Layerkatalog: `DOP` mit `http://localhost:8090/ows`
 - WMS `GetMap` für einen Ausschnitt bei Wermelskirchen: HTTP 200 und gültiges PNG
 - Adressvarianten `Well 8 Wermelskirchen`, `Well 8, Wermelskirchen` und `Wermelskirchen Well 8` liefern denselben priorisierten Datensatz
+
+## Fortführung: Einsatznummern und operative GIS-Darstellung (30.08.2026)
+
+### Automatische Einsatznummer
+
+Die frühere Formularvorgabe `DPW-E-<Jahr>-` konnte unverändert gespeichert werden. Da Einsatznummern pro Organisation eindeutig sind, führte jede weitere Anlage mit demselben Präfix zu PostgreSQL-Fehler `23505` und einem nicht abgefangenen HTTP 500.
+
+Neue Einsatznummern werden nun ausschließlich serverseitig und automatisch im Format `yyyy-MM-dd-HH-mm-ss` vergeben, beispielsweise `2026-08-30-10-51-42`. Maßgeblich ist die Zeitzone `Europe/Berlin`; eine im Browser übermittelte Nummer wird nicht akzeptiert. Existiert die berechnete Nummer bereits, sucht die API sekundenweise die nächste freie Nummer. Eine dennoch mögliche parallele Unique-Kollision wird als verständlicher HTTP-409-Konflikt behandelt. Das Formular zeigt lediglich eine schreibgeschützte Vorschau, und die Create-Antwort enthält die tatsächlich gespeicherte Nummer.
+
+### Aktive Einsatzorte in der GIS-Lage
+
+Offene, disponierte und in Bearbeitung befindliche Einsätze werden über das lokale Adressregister geokodiert und in einer eigenen schaltbaren OpenLayers-Ebene `Aktive Einsatzorte` dargestellt. Jeder Marker besteht aus einem farbigen Kreis und einer Beschriftung mit Einsatznummer und Stichwort. Offen wird rot, disponiert orange und in Bearbeitung blau dargestellt. Abgeschlossene und stornierte Einsätze erscheinen nicht. Beim ersten Öffnen passt sich der Kartenausschnitt an die vorhandenen aktiven Marker an; spätere WebSocket-/Datenaktualisierungen erneuern die Marker, ohne den danach manuell gewählten Ausschnitt zurückzusetzen. WMS- und andere externe Layer werden unterhalb der operativen Marker und editierbaren Fachobjekte einsortiert.
+
+### Idempotentes Löschen von GIS-Objekten
+
+Ein gelöschtes, aber in der OpenLayers-Select-Interaktion noch ausgewähltes Feature konnte optisch in deren separater Overlayebene stehen bleiben. Ein erneuter Löschversuch führte anschließend zu HTTP 404, obwohl die Datenbank bereits leer war. Der DELETE-Endpunkt ist deshalb idempotent und liefert auch für ein bereits fehlendes Feature HTTP 204. Im Frontend wird während des Requests der Button gesperrt, die kanonische Feature-ID verwendet, anschließend die Auswahl-Overlayebene geleert, das Feature aus der Vektorquelle entfernt, die Quelle als geändert markiert und die Karte synchron neu gerendert.
+
+### Verifikation dieses Stands
+
+- .NET-10-Publish im Docker-Build erfolgreich
+- JavaScript-Syntax und Diff geprüft
+- API-Readiness nach Containerneustart: HTTP 200
+- Create-API verlangt keine vom Client vorgegebene Einsatznummer mehr
+- Löschen einer bereits fehlenden GIS-GUID: HTTP 204
+- GIS-FeatureCollection nach dem gemeldeten Löschvorgang leer; ausgeliefertes Frontend enthält Auswahlbereinigung und synchrones Redraw

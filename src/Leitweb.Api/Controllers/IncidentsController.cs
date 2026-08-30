@@ -5,6 +5,7 @@ using Leitweb.Api.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Leitweb.Api.Controllers;
 
@@ -38,19 +39,31 @@ public sealed class IncidentsController : ControllerBase
     [HttpPost, Authorize(Policy = Permissions.IncidentCreate)]
     public async Task<ActionResult> Create(CreateIncident request, CancellationToken ct)
     {
-        if (request.OrganizationId == Guid.Empty || string.IsNullOrWhiteSpace(request.ReferenceNumber)
-            || string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Location))
-            return ValidationProblem("Organisation, Einsatznummer, Titel und Einsatzort sind erforderlich.");
+        if (request.OrganizationId == Guid.Empty || string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.Location))
+            return ValidationProblem("Organisation, Titel und Einsatzort sind erforderlich.");
+
+        var referenceTime = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow, "Europe/Berlin");
+        string referenceNumber;
+        do
+        {
+            referenceNumber = referenceTime.ToString("yyyy-MM-dd-HH-mm-ss", System.Globalization.CultureInfo.InvariantCulture);
+            referenceTime = referenceTime.AddSeconds(1);
+        } while (await _db.Incidents.AnyAsync(x => x.OrganizationId == request.OrganizationId && x.ReferenceNumber == referenceNumber, ct));
 
         var incident = new Incident
         {
-            OrganizationId = request.OrganizationId, ReferenceNumber = request.ReferenceNumber.Trim(),
+            OrganizationId = request.OrganizationId, ReferenceNumber = referenceNumber,
             Title = request.Title.Trim(), Description = request.Description.Trim(), Location = request.Location.Trim(), Occasion = request.Occasion
         };
         incident.StatusHistory.Add(new IncidentStatusEntry { Status = incident.Status, ChangedBy = User.Identity?.Name ?? "unknown" });
-        _db.Incidents.Add(incident); await _db.SaveChangesAsync(ct);
+        _db.Incidents.Add(incident);
+        try { await _db.SaveChangesAsync(ct); }
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return Conflict(new ProblemDetails { Title = "Einsatznummer bereits vergeben", Detail = "Bitte die Einsatzanlage erneut ausführen." });
+        }
         await _updates.BroadcastAsync("incidents.changed");
-        return CreatedAtAction(nameof(Get), new { id = incident.Id }, new { incident.Id });
+        return CreatedAtAction(nameof(Get), new { id = incident.Id }, new { incident.Id, incident.ReferenceNumber });
     }
 
     [HttpPut("{id:guid}"), Authorize(Policy = Permissions.IncidentUpdate)]
@@ -104,7 +117,7 @@ public sealed class IncidentsController : ControllerBase
     }
 }
 
-public sealed record CreateIncident(Guid OrganizationId, string ReferenceNumber, string Title, string Description, string Location, PoliceOccasion Occasion);
+public sealed record CreateIncident(Guid OrganizationId, string Title, string Description, string Location, PoliceOccasion Occasion);
 public sealed record UpdateIncident(string Title, string Description, string Location);
 public sealed record ChangeIncidentStatus(IncidentStatus Status);
 public sealed record IncidentSummary(Guid Id, Guid OrganizationId, string ReferenceNumber, string Title, string Location,

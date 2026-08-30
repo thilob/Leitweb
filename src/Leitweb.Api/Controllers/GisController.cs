@@ -83,7 +83,8 @@ public sealed class GisController : ControllerBase
     public async Task<IActionResult> DeleteFeature(Guid id, [FromQuery] Guid organizationId, CancellationToken ct)
     {
         var feature = await _db.GisFeatures.Include(x => x.Layer).SingleOrDefaultAsync(x => x.Id == id && x.OrganizationId == organizationId, ct);
-        if (feature is null) return NotFound(); if (!feature.Layer.IsEditable) return BadRequest("Der Layer ist nicht editierbar.");
+        if (feature is null) return NoContent();
+        if (!feature.Layer.IsEditable) return BadRequest("Der Layer ist nicht editierbar.");
         _db.GisFeatures.Remove(feature); await _db.SaveChangesAsync(ct); return NoContent();
     }
 
