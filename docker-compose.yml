@@ -68,6 +68,8 @@ services:
       Authentication__MetadataAddress: http://identity:8080/realms/leitweb/.well-known/openid-configuration
       Authentication__Audience: leitweb-api
       Authentication__RequireHttpsMetadata: "false"
+      Gis__QgisServerUrl: http://qgis-web:8080/ows
+      Gis__QgisPublicUrl: ${QGIS_PUBLIC_URL:-http://${PUBLIC_HOSTNAME:-localhost}:${QGIS_PORT:-8090}/ows}
     ports:
       - "${LEITWEB_PORT:-5000}:8080"
     depends_on:
@@ -84,7 +86,7 @@ services:
       PGDATABASE: leitweb
       PGUSER: leitweb
       PGPASSWORD: ${POSTGRES_PASSWORD:-change-this-database-password}
-      QGIS_PROJECT_FILE: /projects/leitweb.qgs
+      QGIS_PROJECT_FILE: ${QGIS_PROJECT_FILE:-/projects/start.qgz}
     volumes:
       - ./deploy/qgis-server/projects:/projects:ro,Z
     depends_on:

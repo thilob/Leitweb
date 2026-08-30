@@ -112,7 +112,7 @@ Beim Start kann die API einmalig melden, dass PostgreSQL noch startet; die Compo
 
 ### Noch offen / bekannte Einschränkungen
 
-- Unter `deploy/qgis-server/projects` fehlt derzeit die konfigurierte Datei `leitweb.qgs`. Das QGIS-Gateway und der Serverprozess laufen, ein WMS-`GetCapabilities` auf `/ows` endet deshalb aber mit HTTP 500 (`Unable to open /projects/leitweb.qgs`). Die integrierte Leitweb-GIS-API ist davon unabhängig funktionsfähig.
+- Das QGIS-Projekt `deploy/qgis-server/projects/start.qgz` ist eingebunden und veröffentlicht den Orthophoto-Layer `DOP`. WMS-`GetCapabilities` und ein tatsächlicher `GetMap`-Abruf für Wermelskirchen wurden mit HTTP 200 geprüft. Der veröffentlichte Projektpfad ist in allen Compose-Varianten über `QGIS_PROJECT_FILE` konfigurierbar; Standard ist `/projects/start.qgz`. Nginx verdrahtet keinen eigenen Projektpfad. Die API liest über `/api/v1/gis/qgis-layers` dynamisch die WMS-Capabilities des aktiven Projekts; jeder benannte QGIS-Layer erscheint dadurch automatisch als einzeln schaltbarer Layer in der GIS-Lage. `QGIS_PUBLIC_URL` muss vom Browser erreichbar sein.
 - OpenLayers wird derzeit von jsDelivr geladen. Für einen vollständig abgeschotteten Betrieb sollte die Bibliothek lokal ausgeliefert und mit einer Content-Security-Policy abgesichert werden.
 - Der lokale Development-Modus gewährt absichtlich umfassende Rechte. Er darf nicht öffentlich veröffentlicht werden. Für reale Deployments müssen Testauthentifizierung und Testdaten deaktiviert, TLS erzwungen und Keycloak-Rollen korrekt administriert werden.
 - Es fehlen weiterhin automatisierte API-, Browser- und Compose-Integrationstests sowie Auditierung, Löschkonzept, sichere Secret-Verwaltung und verbindliche Mandantenzuordnung aus dem Token.
@@ -128,3 +128,37 @@ Beim Start kann die API einmalig melden, dass PostgreSQL noch startet; die Compo
 - `src/Leitweb.Api/Domain/GisModels.cs`: GIS-Domänenmodell
 - `src/Leitweb.Api/Data/Migrations/20260829120000_AddGis.cs`: PostGIS-Erweiterung und GIS-Schema
 - `src/Leitweb.Api/wwwroot/app.js`: OpenLayers-Karte, Rollenprüfung und Karteninteraktion
+
+## Fortführung: Adressauflösung und dynamisches QGIS-Projekt (30.08.2026)
+
+### Einsatzorte und Kartenposition
+
+Die frühere Adresssuche verglich den gesamten normalisierten Suchtext mit einer festen Verkettung aus Straße, Hausnummer, Postleitzahl und Gemeinde. Da der amtliche Grundbestand derzeit keine Postleitzahlen enthält, entstanden in der Verkettung doppelte Leerzeichen. Deshalb fand beispielsweise `Well 8 Wermelskirchen` den vorhandenen Datensatz `Well 8, Wermelskirchen` trotz gültiger Koordinaten nicht.
+
+`AddressesController` sucht nun tokenbasiert über alle Adressbestandteile. Kommas, Semikolons, Mehrfachleerzeichen und eine abweichende Reihenfolge verhindern keinen Treffer mehr. Bis zu 500 serverseitig gefilterte Kandidaten werden anschließend separatorunabhängig gerankt; eine exakt passende Hausnummer steht dadurch vor Zusätzen wie `8a`, `8b` und `8c`. Das Frontend normalisiert Einsatzort und Ergebnis auf dieselbe Weise. Für `Well 8 Wermelskirchen` wird `Well 8, Wermelskirchen` mit `51.126360736377165, 7.252051253176141` als erster Treffer geliefert.
+
+### Variables QGIS-Projekt
+
+Das QGIS-Projekt liegt als `deploy/qgis-server/projects/start.qgz` vor und enthält aktuell den Orthophoto-WMS-Layer `DOP`. Der Projektpfad ist in `docker-compose.yml`, `compose.gis.yml` und `docker-compose.dockhand.yml` nicht mehr fest verdrahtet:
+
+```env
+QGIS_PROJECT_FILE=/projects/start.qgz
+QGIS_PUBLIC_URL=http://SERVER-IP-ODER-DNS-NAME:8090/ows
+```
+
+`QGIS_PROJECT_FILE` bezeichnet einen Pfad innerhalb des nach `/projects` gemounteten Verzeichnisses und fällt ohne Angabe auf `/projects/start.qgz` zurück. Das Nginx-Gateway übergibt keinen eigenen `QGIS_PROJECT_FILE`-FastCGI-Parameter mehr; maßgeblich ist ausschließlich die Umgebung des QGIS-Server-Containers. `QGIS_PUBLIC_URL` ist die vom Browser erreichbare WMS-Adresse und muss bei einem entfernten Host ausdrücklich angepasst werden.
+
+### Automatische Layerübernahme
+
+Der geschützte Endpunkt `/api/v1/gis/qgis-layers` ruft serverseitig über `Gis:QgisServerUrl` die WMS-Capabilities des aktiven QGIS-Projekts ab. XML-DTDs und externe Resolver sind dabei deaktiviert. Alle benannten WMS-Layer werden dedupliziert und mit `Gis:QgisPublicUrl` an das Frontend geliefert. Die GIS-Lage kombiniert diese dynamischen QGIS-Layer mit den bereits in der Datenbank verwalteten OGC-Quellen und bietet jeden Layer einzeln zum Ein- und Ausblenden an. Ein Projektwechsel benötigt damit keine manuelle Änderung von Layernamen im Code oder in der Datenbank. Ist QGIS vorübergehend nicht erreichbar, lädt die Oberfläche weiterhin ihre übrigen GIS-Layer und -Objekte.
+
+### Verifikation dieses Stands
+
+- .NET-10-Publish im Docker-Build erfolgreich
+- JavaScript mit `node --check` geprüft
+- alle drei Compose-Varianten erfolgreich aufgelöst
+- variables `QGIS_PROJECT_FILE` mit Standard- und Override-Wert geprüft
+- QGIS WMS `GetCapabilities` für `start.qgz`: HTTP 200
+- dynamischer API-Layerkatalog: `DOP` mit `http://localhost:8090/ows`
+- WMS `GetMap` für einen Ausschnitt bei Wermelskirchen: HTTP 200 und gültiges PNG
+- Adressvarianten `Well 8 Wermelskirchen`, `Well 8, Wermelskirchen` und `Wermelskirchen Well 8` liefern denselben priorisierten Datensatz

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Xml;
+using System.Xml.Linq;
 using Leitweb.Api.Data;
 using Leitweb.Api.Domain;
 using Leitweb.Api.Security;
@@ -15,9 +17,16 @@ namespace Leitweb.Api.Controllers;
 public sealed class GisController : ControllerBase
 {
     private readonly LeitwebDbContext _db;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
     private static readonly GeoJsonReader GeoJsonReader = new();
     private static readonly GeoJsonWriter GeoJsonWriter = new();
-    public GisController(LeitwebDbContext db) => _db = db;
+    public GisController(LeitwebDbContext db, IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    {
+        _db = db;
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
+    }
 
     [HttpGet("layers"), Authorize(Policy = Permissions.GisViewPolicy)]
     public async Task<IActionResult> GetLayers([FromQuery] Guid organizationId, CancellationToken ct) => Ok(await _db.GisLayers
@@ -81,6 +90,43 @@ public sealed class GisController : ControllerBase
     [HttpGet("sources"), Authorize(Policy = Permissions.GisViewPolicy)]
     public async Task<IActionResult> GetSources([FromQuery] Guid organizationId, CancellationToken ct) => Ok(await _db.GisSources.AsNoTracking()
         .Where(x => x.OrganizationId == organizationId && x.Enabled).OrderBy(x => x.Name).ToListAsync(ct));
+
+    [HttpGet("qgis-layers"), Authorize(Policy = Permissions.GisViewPolicy)]
+    public async Task<IActionResult> GetQgisLayers(CancellationToken ct)
+    {
+        var serverUrl = _configuration["Gis:QgisServerUrl"];
+        var publicUrl = _configuration["Gis:QgisPublicUrl"];
+        if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out var serverUri)
+            || !Uri.TryCreate(publicUrl, UriKind.Absolute, out var publicUri)) return Ok(Array.Empty<object>());
+
+        try
+        {
+            var separator = string.IsNullOrEmpty(serverUri.Query) ? "?" : "&";
+            using var response = await _httpClientFactory.CreateClient().GetAsync(
+                serverUri + separator + "SERVICE=WMS&REQUEST=GetCapabilities", ct);
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var reader = XmlReader.Create(stream, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
+            var document = XDocument.Load(reader, LoadOptions.None);
+            var layers = document.Descendants().Where(x => x.Name.LocalName == "Layer")
+                .Select(x => new
+                {
+                    LayerName = x.Elements().FirstOrDefault(e => e.Name.LocalName == "Name")?.Value.Trim(),
+                    Title = x.Elements().FirstOrDefault(e => e.Name.LocalName == "Title")?.Value.Trim()
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x.LayerName))
+                .GroupBy(x => x.LayerName!, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .Select(x => new { Id = "qgis:" + x.LayerName, Name = string.IsNullOrWhiteSpace(x.Title) ? x.LayerName : x.Title,
+                    ServiceType = "WMS", ServiceUrl = publicUri.ToString(), x.LayerName })
+                .ToList();
+            return Ok(layers);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or XmlException)
+        {
+            return Problem("Die Layer des QGIS-Projekts konnten nicht gelesen werden.", statusCode: StatusCodes.Status502BadGateway);
+        }
+    }
 
     [HttpPost("sources"), Authorize(Policy = Permissions.GisFullAccessPolicy)]
     public async Task<IActionResult> CreateSource(CreateGisSource request, CancellationToken ct)

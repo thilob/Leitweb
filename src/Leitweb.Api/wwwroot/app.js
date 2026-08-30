@@ -299,12 +299,16 @@ function renderIncidents() {
 
 function canViewGis() { return ['gis-sehen','gis-objekte-aendern','gis-vollzugriff'].some(role => auth.roles.includes(role)); }
 
+function normalizeAddress(value) {
+  return String(value ?? '').toLocaleLowerCase('de-DE').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 async function offerIncidentMapCenter(incident) {
   if (!canViewGis() || !confirm(`Soll die Karte auf den Einsatzort "${incident.location}" zentriert werden?`)) return;
   try {
     const matches = await api(`/api/v1/addresses/search?query=${encodeURIComponent(incident.location)}&limit=10`);
-    const normalizedLocation = incident.location.trim().toLocaleLowerCase('de-DE');
-    const address = matches.find(item => item.displayName.trim().toLocaleLowerCase('de-DE') === normalizedLocation) || matches[0];
+    const normalizedLocation = normalizeAddress(incident.location);
+    const address = matches.find(item => normalizeAddress(item.displayName) === normalizedLocation) || matches[0];
     if (!address || !Number.isFinite(address.longitude) || !Number.isFinite(address.latitude)) {
       toast('Für den Einsatzort sind keine Kartenkoordinaten hinterlegt', true);
       return;
@@ -383,9 +387,10 @@ function canEditGis() { return auth.roles.includes('gis-objekte-aendern') || aut
 async function initializeGis() {
   if (gisMap) { gisMap.updateSize(); return; }
   if (!globalThis.ol) { $('#gis-map-status').textContent = 'OpenLayers konnte nicht geladen werden.'; return; }
-  const [layers, sources, profiles, featureCollection] = await Promise.all([
+  const [layers, sources, qgisLayers, profiles, featureCollection] = await Promise.all([
     api(`/api/v1/gis/layers?organizationId=${organizationId}`), api(`/api/v1/gis/sources?organizationId=${organizationId}`),
-    api(`/api/v1/gis/profiles?organizationId=${organizationId}`), api(`/api/v1/gis/features?organizationId=${organizationId}`)
+    api('/api/v1/gis/qgis-layers').catch(() => []), api(`/api/v1/gis/profiles?organizationId=${organizationId}`),
+    api(`/api/v1/gis/features?organizationId=${organizationId}`)
   ]);
   gisLayers = layers; gisProfiles = profiles;
   gisVectorSource = new ol.source.Vector({features:new ol.format.GeoJSON().readFeatures(featureCollection,{featureProjection:'EPSG:3857'})});
@@ -395,7 +400,7 @@ async function initializeGis() {
   }});
   gisMap = new ol.Map({target:'gis-map',layers:[gisVectorLayer],view:new ol.View({center:ol.proj.fromLonLat([6.25,51.55]),zoom:11,minZoom:3,maxZoom:21})});
   gisSelect = new ol.interaction.Select({layers:[gisVectorLayer]}); gisMap.addInteraction(gisSelect);
-  sources.forEach(addExternalGisSource);
+  [...sources,...qgisLayers].forEach(addExternalGisSource);
   renderGisControls();
   $('#gis-edit-tools').classList.toggle('hidden',!canEditGis());
   const defaultProfile=profiles.find(x=>x.isDefault); if(defaultProfile) applyGisProfile(defaultProfile);
