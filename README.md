@@ -26,6 +26,17 @@ Der Grundbestand kann bei Bedarf aktualisiert werden:
 
 Beim Aufbau einer leeren Datenbank wird `Data/addresses.tsv` einmalig importiert. Bestehende Datenbanken bleiben dabei unverändert; für spätere Aktualisierungen ist eine explizite Import-/Austauschmigration vorgesehen.
 
+## Compose-Dateien pro Branch
+
+| Branch | Betrieb | Compose-Datei |
+| --- | --- | --- |
+| `Dorfpolizei-Well` | lokal mit Docker oder Podman Compose | `docker-compose.yml` |
+| `Dorfpolizei-Well` | Dockhand | `docker-compose.dockhand.yml` |
+| `Dorfpolizei-Well-mit-GIS` | lokal und vom Stack ohne GIS getrennt | `compose.gis.yml` |
+| `Dorfpolizei-Well-mit-GIS` | Dockhand und vom Stack ohne GIS getrennt | `docker-compose.dockhand.yml` |
+
+Im GIS-Branch wählt `docker compose up` ohne `-f` automatisch die ebenfalls vorhandene `docker-compose.yml`. Für einen unabhängigen parallelen GIS-Betrieb ist stattdessen immer `docker compose -f compose.gis.yml up --build -d` zu verwenden. In Dockhand wird in beiden Branches `docker-compose.dockhand.yml` ausgewählt; maßgeblich ist dabei der jeweils konfigurierte Git-Branch.
+
 ## Start
 
 Voraussetzung ist Docker mit Compose oder Podman Compose. Vor dem ersten Start wird eine lokale Konfigurationsdatei angelegt:
@@ -130,7 +141,7 @@ Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.examp
 
 Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbindung `/ws/updates` unmittelbar an alle geöffneten Leitweb-Clients übertragen. Ein vorgeschalteter Reverse Proxy muss deshalb WebSocket-Upgrades (`Upgrade`/`Connection`) an Leitweb weiterreichen. Der Browser baut eine unterbrochene Verbindung automatisch wieder auf.
 
-Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. PostgreSQL-Daten bleiben im benannten Volume `dorfpolizei-well-data` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
+Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. Im GIS-Branch bleiben PostgreSQL-Daten im eigenständigen Volume `leitweb-gis-postgres` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
 
 ### Benutzerverwaltung
 
