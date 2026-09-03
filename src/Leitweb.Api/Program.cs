@@ -74,6 +74,28 @@ using (var scope = app.Services.CreateScope())
     await AddressSeedImporter.ImportIfEmptyAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "addresses.tsv"));
 }
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/api"))
+    {
+        await next();
+        return;
+    }
+
+    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+    try
+    {
+        await next();
+        app.Logger.LogInformation("HTTP {Method} {Path} completed with {StatusCode} in {ElapsedMilliseconds} ms",
+            context.Request.Method, context.Request.Path, context.Response.StatusCode, stopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception exception)
+    {
+        app.Logger.LogError(exception, "HTTP {Method} {Path} failed after {ElapsedMilliseconds} ms",
+            context.Request.Method, context.Request.Path, stopwatch.ElapsedMilliseconds);
+        throw;
+    }
+});
 app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
 {
     authority = configuration["Authentication:PublicAuthority"] ?? configuration["Authentication:Authority"],

@@ -72,6 +72,8 @@ Anwendungsdaten und Keycloak liegen in zwei getrennten PostgreSQL-Datenbanken im
 
 Das Schema wird beim API-Start automatisch über versionierte Entity-Framework-Migrationen aktualisiert. Grunddaten und das lokale Adressregister werden nur in leere Tabellen importiert.
 
+Die Einsatzortsuche verwendet einen Datenbankindex für Straßen- und Hausnummerpräfixe. Überholte Browseranfragen werden beim Weitertippen abgebrochen; andere Suchfehler erscheinen sichtbar in der Oberfläche. API-Aufrufe werden mit HTTP-Methode, Pfad, Status und Laufzeit protokolliert, jedoch ohne Query-String und damit ohne den eingegebenen Einsatzort.
+
 Status und Protokolle:
 
 ```sh

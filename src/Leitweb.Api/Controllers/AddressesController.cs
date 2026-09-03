@@ -18,16 +18,16 @@ public sealed class AddressesController : ControllerBase
         var normalized = Normalize(query);
         if (normalized.Length < 2) return Ok(Array.Empty<object>());
         limit = Math.Clamp(limit, 1, 100);
-        var candidates = _db.Addresses.AsNoTracking().AsQueryable();
-        foreach (var searchToken in normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var token = searchToken;
-            candidates = candidates.Where(x =>
-                (x.Street + " " + x.HouseNumber + " " + x.PostalCode + " " + x.Municipality).ToLower().Contains(token));
-        }
+        var tokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var hasHouseNumber = tokens.Length > 1 && tokens[^1].Any(char.IsDigit);
+        var streetPrefix = hasHouseNumber ? string.Join(' ', tokens[..^1]) : normalized;
+        var houseNumberPrefix = hasHouseNumber ? tokens[^1] : null;
+        var candidates = _db.Addresses.AsNoTracking()
+            .Where(x => x.Street.ToLower().StartsWith(streetPrefix));
+        if (houseNumberPrefix is not null)
+            candidates = candidates.Where(x => x.HouseNumber.ToLower().StartsWith(houseNumberPrefix));
 
-        // Fetch a bounded candidate set from PostgreSQL and rank exact, separator-independent matches in memory.
-        // This avoids empty fields (for example a missing postal code) introducing double spaces that break a full-text match.
+        // Fetch a bounded, index-backed street prefix result and rank exact matches in memory.
         var matches = await candidates.OrderBy(x => x.Municipality).ThenBy(x => x.Street).ThenBy(x => x.HouseNumber)
             .Take(500).ToListAsync(ct);
         return Ok(matches
