@@ -126,7 +126,7 @@ Der Stack [`docker-compose.dockhand.yml`](docker-compose.dockhand.yml) kann in D
 - `KEYCLOAK_ADMIN_PASSWORD`: separates, langes Keycloak-Administratorpasswort
 - `KEYCLOAK_PUBLIC_URL`: vom Browser erreichbare Keycloak-URL, beispielsweise `https://auth.example.org`
 
-Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Leitweb ist standardmäßig auf Port `5000`, Keycloak auf Port `8080` veröffentlicht.
+Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Der GIS-Dockhand-Stack veröffentlicht Leitweb standardmäßig auf Port `5100`, Keycloak auf Port `8180` und QGIS Server auf Port `8190`; damit kollidiert er nicht mit dem Stack ohne GIS.
 
 Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbindung `/ws/updates` unmittelbar an alle geöffneten Leitweb-Clients übertragen. Ein vorgeschalteter Reverse Proxy muss deshalb WebSocket-Upgrades (`Upgrade`/`Connection`) an Leitweb weiterreichen. Der Browser baut eine unterbrochene Verbindung automatisch wieder auf.
 
@@ -167,7 +167,7 @@ docker compose -f compose.gis.yml up --build -d
 docker compose -f compose.gis.yml ps
 ```
 
-Erreichbar sind anschließend Leitweb unter `http://localhost:5000`, Keycloak unter der in `KEYCLOAK_PUBLIC_URL` gesetzten Adresse und QGIS Server unter `http://localhost:8090/ows`. Für einen entfernten Host müssen `KEYCLOAK_PUBLIC_URL` sowie gegebenenfalls die veröffentlichten Ports vor dem ersten Realm-Import korrekt gesetzt sein.
+Mit den Werten aus `.env.example` sind anschließend Leitweb unter `http://localhost:5100`, Keycloak unter `http://localhost:8180` und QGIS Server unter `http://localhost:8190/ows` erreichbar. Für einen entfernten Host müssen `KEYCLOAK_PUBLIC_URL` sowie gegebenenfalls die veröffentlichten Ports vor dem ersten Realm-Import korrekt gesetzt sein.
 
 QGIS-Projekte liegen unter `deploy/qgis-server/projects` und werden schreibgeschützt nach `/projects` in den Server eingebunden. Das veröffentlichte Standardprojekt ist `start.qgz`; es stellt den Orthophoto-Layer `DOP` als WMS bereit. Eigene, zuvor mit QGIS Desktop geprüfte Projekte können dort versioniert abgelegt werden. Die Auswahl erfolgt über die Compose-/`.env`-Variable `QGIS_PROJECT_FILE`, beispielsweise `QGIS_PROJECT_FILE=/projects/meine-lage.qgz`. Ohne Angabe wird `/projects/start.qgz` verwendet. Das Nginx-Gateway übernimmt keinen festen Projektpfad, sodass die Container-Variable maßgeblich bleibt. `QGIS_PUBLIC_URL` bezeichnet den vom Browser erreichbaren OWS-Endpunkt. Leitweb liest die WMS-Capabilities des jeweils aktiven Projekts automatisch ein und bietet alle darin benannten Layer einzeln in der GIS-Lage zum Ein- und Ausblenden an. Datenbankzustand, Projekte und Containerkonfiguration sind getrennt, sodass dieselben Artefakte später in PersistentVolume, ConfigMap und Deployments eines Kubernetes-Stacks überführt werden können.
 

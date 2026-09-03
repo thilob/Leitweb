@@ -1,4 +1,4 @@
-name: leitweb
+name: leitweb-gis
 
 services:
   database:
@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: leitweb
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss in Dockhand gesetzt werden}
     volumes:
-      - leitweb-postgres:/var/lib/postgresql/data
+      - leitweb-gis-postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U leitweb -d leitweb"]
       interval: 10s
@@ -32,12 +32,12 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD muss in Dockhand gesetzt werden}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
-      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}
+      KC_HOSTNAME: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}
       KC_PROXY_HEADERS: xforwarded
     volumes:
       - ./deploy/keycloak/leitweb-realm.json:/opt/keycloak/data/import/leitweb-realm.json:ro
     ports:
-      - "${KEYCLOAK_PORT:-8080}:8080"
+      - "${KEYCLOAK_PORT:-8180}:8080"
     depends_on:
       database-init:
         condition: service_completed_successfully
@@ -75,8 +75,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       InitialData__Seed: ${INITIAL_DATA_SEED:-true}
       ConnectionStrings__Database: Host=database;Port=5432;Database=leitweb;Username=leitweb;Password=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss in Dockhand gesetzt werden};Search Path=public
-      Authentication__Authority: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/leitweb
-      Authentication__PublicAuthority: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8080}/realms/leitweb
+      Authentication__Authority: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}/realms/leitweb
+      Authentication__PublicAuthority: ${KEYCLOAK_PUBLIC_URL:-http://localhost:8180}/realms/leitweb
       Authentication__MetadataAddress: http://identity:8080/realms/leitweb/.well-known/openid-configuration
       Authentication__Audience: leitweb-api
       Authentication__ClientId: leitweb-api
@@ -86,10 +86,10 @@ services:
       KeycloakAdmin__ClientId: leitweb-user-admin
       KeycloakAdmin__ClientSecret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-}
       Gis__QgisServerUrl: http://qgis-web:8080/ows
-      Gis__QgisPublicUrl: ${QGIS_PUBLIC_URL:-http://localhost:${QGIS_PORT:-8090}/ows}
+      Gis__QgisPublicUrl: ${QGIS_PUBLIC_URL:-http://localhost:${QGIS_PORT:-8190}/ows}
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
     ports:
-      - "${LEITWEB_PORT:-5000}:8080"
+      - "${LEITWEB_PORT:-5100}:8080"
     depends_on:
       database:
         condition: service_healthy
@@ -128,7 +128,7 @@ services:
     image: nginx:1.30-alpine
     restart: unless-stopped
     ports:
-      - "${QGIS_PORT:-8090}:8080"
+      - "${QGIS_PORT:-8190}:8080"
     volumes:
       - ./deploy/qgis-server/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -144,7 +144,9 @@ services:
       - backend
 
 volumes:
-  leitweb-postgres:
+  leitweb-gis-postgres:
+    name: leitweb-gis-postgres
 
 networks:
   backend:
+    name: leitweb-gis-backend
