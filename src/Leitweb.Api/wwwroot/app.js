@@ -357,5 +357,25 @@ $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.from
 $('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});e.target.reset();$('#user-dialog').close();toast('Benutzer wurde in Keycloak angelegt');}catch(error){toast(error.message,true);}};
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 let addressTimer;
-$('#incident-form').elements.location.addEventListener('input',e=>{clearTimeout(addressTimer);const query=e.target.value.trim();if(query.length<2)return;addressTimer=setTimeout(async()=>{try{const addresses=await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`);$('#address-suggestions').innerHTML=addresses.map(a=>`<option value="${escapeHtml(a.displayName)}"></option>`).join('');}catch{}},250);});
+let addressSearchController;
+$('#incident-form').elements.location.addEventListener('input', e => {
+  clearTimeout(addressTimer);
+  addressSearchController?.abort();
+  const query = e.target.value.trim();
+  if (query.length < 2) {
+    $('#address-suggestions').innerHTML = '';
+    return;
+  }
+  addressTimer = setTimeout(async () => {
+    addressSearchController = new AbortController();
+    try {
+      const addresses = await api(`/api/v1/addresses/search?query=${encodeURIComponent(query)}&limit=40`, {signal:addressSearchController.signal});
+      $('#address-suggestions').innerHTML = addresses.map(a => `<option value="${escapeHtml(a.displayName)}"></option>`).join('');
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      console.error('Adresssuche fehlgeschlagen', error);
+      toast(`Adresssuche fehlgeschlagen: ${error.message}`, true);
+    }
+  }, 250);
+});
 initializeAuthentication().then(async () => { initializeIncidentSimulation(); await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
