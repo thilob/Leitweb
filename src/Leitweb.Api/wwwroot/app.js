@@ -68,6 +68,7 @@ async function api(path, options = {}) {
   try {
     response = await fetch(path, { ...options, headers: {'Content-Type':'application/json',...authorization, ...(options.headers || {})} });
   } catch (error) {
+    if (error?.name === 'AbortError') throw error;
     throw new Error(`API nicht erreichbar (${path}). Ursache und Dienststatus unter „Laufzeitstatus“ prüfen.`, {cause:error});
   }
   if (!response.ok) {
@@ -349,11 +350,34 @@ async function selectIncident(id, {offerMapCenter=true} = {}) {
       <h3 class="section-title">Statusverlauf</h3><div class="timeline">${i.statusHistory.map(h=>`<div class="timeline-item"><strong>${incidentStatus[h.status]}</strong><small>${formatDate(h.changedAt)} · ${escapeHtml(h.changedBy)}</small></div>`).join('')}</div>
       <button class="primary" id="make-case">${state.cases.some(c=>c.incidentId===id)?'Fallakte öffnen':'Aus Einsatz einen Fall machen'}</button>
     </div>`;
-    $('#incident-status').onchange = async e => { await api(`/api/v1/incidents/${id}/status`, {method:'PUT',body:JSON.stringify({status:+e.target.value})}); toast('Einsatzstatus aktualisiert'); await loadAll(); };
+    $('#incident-status').onchange = async e => {
+      e.target.disabled = true;
+      try {
+        await api(`/api/v1/incidents/${id}/status`, {method:'PUT',body:JSON.stringify({status:+e.target.value})});
+        toast('Einsatzstatus aktualisiert');
+      } catch (error) { toast(error.message, true); }
+      finally { await loadAll(); }
+    };
     $('#edit-incident').onclick = () => openIncidentDialog(i);
     $('#make-case').onclick = () => { const existing=state.cases.find(c=>c.incidentId===id); if(existing){showView('cases');selectCase(existing.id);}else openCaseDialog(i); };
-    $('#assign-button').onclick = async () => { const resourceId=$('#assign-resource').value; if(!resourceId) return toast('Bitte ein Einsatzmittel auswählen', true); await api(`/api/v1/incidents/${id}/resources/${resourceId}`,{method:'POST'}); toast('Einsatzmittel disponiert'); await loadAll(); };
-    document.querySelectorAll('.unassign').forEach(b => b.onclick = async () => { await api(`/api/v1/incidents/${id}/resources/${b.dataset.id}`,{method:'DELETE'}); toast('Einsatzmittel gelöst'); await loadAll(); });
+    $('#assign-button').onclick = async event => {
+      const resourceId=$('#assign-resource').value;
+      if(!resourceId) return toast('Bitte ein Einsatzmittel auswählen', true);
+      event.currentTarget.disabled = true;
+      try {
+        await api(`/api/v1/incidents/${id}/resources/${resourceId}`,{method:'POST'});
+        toast('Einsatzmittel disponiert');
+      } catch (error) { toast(error.message, true); }
+      finally { await loadAll(); }
+    };
+    document.querySelectorAll('.unassign').forEach(b => b.onclick = async event => {
+      event.currentTarget.disabled = true;
+      try {
+        await api(`/api/v1/incidents/${id}/resources/${b.dataset.id}`,{method:'DELETE'});
+        toast('Einsatzmittel gelöst');
+      } catch (error) { toast(error.message, true); }
+      finally { await loadAll(); }
+    });
     if (offerMapCenter) await offerIncidentMapCenter(i);
   } catch (error) { toast(error.message, true); }
 }
