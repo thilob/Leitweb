@@ -103,7 +103,7 @@ async function exchangeToken(parameters) {
   auth.roles = tokenPayload(auth.accessToken).realm_access?.roles || [];
   const canManageUsers = auth.roles.includes('user-admin');
   const canViewGis = ['gis-sehen','gis-objekte-aendern','gis-vollzugriff'].some(role => auth.roles.includes(role));
-  $('#new-user')?.classList.toggle('hidden', !canManageUsers);
+  $('#users-nav')?.classList.toggle('hidden', !canManageUsers);
   $('#api-link')?.classList.toggle('hidden', !canManageUsers);
   $('#gis-nav')?.classList.toggle('hidden', !canViewGis);
   auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
@@ -598,8 +598,9 @@ async function loadUserManagement() {
         : user.gisRoles.includes('gis-objekte-aendern') ? 'gis-objekte-aendern'
         : user.gisRoles.includes('gis-sehen') ? 'gis-sehen' : '';
       const option = (value, label) => `<option value="${value}"${selected===value?' selected':''}>${label}</option>`;
-      return `<div class="user-role-row" data-user-id="${escapeHtml(user.id)}"><div><strong>${escapeHtml(user.username)}</strong><small>${escapeHtml([user.firstName,user.lastName].filter(Boolean).join(' ') || user.email)}</small></div><select aria-label="GIS-Berechtigung für ${escapeHtml(user.username)}">${option('','Kein GIS-Zugriff')}${option('gis-sehen','GIS sehen')}${option('gis-objekte-aendern','GIS-Objekte ändern')}${option('gis-vollzugriff','GIS-Vollzugriff')}</select><button type="button" class="secondary save-gis-role">Speichern</button></div>`;
-    }).join('') || '<p class="detail-location">Keine Benutzer vorhanden.</p>';
+      const fullName = [user.firstName,user.lastName].filter(Boolean).join(' ');
+      return `<div class="user-role-row" data-user-id="${escapeHtml(user.id)}"><div class="user-identity"><span class="user-avatar">${escapeHtml((user.firstName?.[0]||user.username?.[0]||'?')+(user.lastName?.[0]||''))}</span><div><strong>${escapeHtml(fullName || user.username)}</strong><small>${escapeHtml(user.username)}${user.email?` · ${escapeHtml(user.email)}`:''}</small></div></div><label><span>GIS-Berechtigung</span><select aria-label="GIS-Berechtigung für ${escapeHtml(user.username)}">${option('','Kein GIS-Zugriff')}${option('gis-sehen','Nur ansehen')}${option('gis-objekte-aendern','Ansehen und bearbeiten')}${option('gis-vollzugriff','Vollzugriff')}</select></label><button type="button" class="secondary save-gis-role">Speichern</button></div>`;
+    }).join('') || '<div class="empty"><h3>Noch keine Benutzer</h3><p>Über „Benutzer anlegen“ kann der erste Zugang erstellt werden.</p></div>';
     list.querySelectorAll('.save-gis-role').forEach(button => button.onclick = async () => {
       const row = button.closest('.user-role-row');
       button.disabled = true;
@@ -609,17 +610,50 @@ async function loadUserManagement() {
       } catch (error) { toast(error.message, true); }
       finally { button.disabled = false; }
     });
-  } catch (error) { list.innerHTML = `<p class="detail-location">${escapeHtml(error.message)}</p>`; }
+  } catch (error) { list.innerHTML = `<div class="user-error"><strong>Benutzerverwaltung nicht erreichbar</strong><p>${escapeHtml(error.message)}</p><span>In Dockhand den Keycloak-Service-Account prüfen und anschließend erneut laden.</span></div>`; }
 }
 
-document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=async()=>{showView(n.dataset.view);if(n.dataset.view==='cases')await loadAll();if(n.dataset.view==='runtime')await loadRuntimeStatus();if(n.dataset.view==='gis')try{await initializeGis();}catch(error){toast(error.message,true);}});
+function generateTemporaryPassword(length = 18) {
+  const groups = ['ABCDEFGHJKLMNPQRSTUVWXYZ','abcdefghijkmnopqrstuvwxyz','23456789','!@#$%*-_=+'];
+  const randomIndex = size => crypto.getRandomValues(new Uint32Array(1))[0] % size;
+  const characters = groups.map(group => group[randomIndex(group.length)]);
+  const all = groups.join('');
+  while (characters.length < length) characters.push(all[randomIndex(all.length)]);
+  for (let index=characters.length-1; index>0; index--) {
+    const other = randomIndex(index+1);
+    [characters[index],characters[other]] = [characters[other],characters[index]];
+  }
+  return characters.join('');
+}
+
+function openUserDialog() {
+  const form = $('#user-form');
+  form.reset();
+  form.elements.temporaryPassword.value = generateTemporaryPassword();
+  $('#user-dialog').showModal();
+  form.elements.firstName.focus();
+}
+
+async function copyTemporaryPassword() {
+  const input = $('#user-form').elements.temporaryPassword;
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(input.value);
+    else { input.select(); document.execCommand('copy'); input.setSelectionRange(0,0); }
+    toast('Temporäres Kennwort kopiert');
+  } catch { toast('Kennwort konnte nicht kopiert werden', true); }
+}
+
+document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=async()=>{showView(n.dataset.view);if(n.dataset.view==='cases')await loadAll();if(n.dataset.view==='runtime')await loadRuntimeStatus();if(n.dataset.view==='users')await loadUserManagement();if(n.dataset.view==='gis')try{await initializeGis();}catch(error){toast(error.message,true);}});
 document.querySelectorAll('.filter-chip').forEach(b => b.onclick=()=>{state.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.toggle('active',x===b));renderIncidents();});
 $('#case-filter').onchange=e=>{state.caseFilter=e.target.value;renderCases();};
 function openIncidentDialog(incident=null) { const f=$('#incident-form'); f.reset(); f.elements.id.value=incident?.id||''; f.elements.referenceNumber.value=incident?.referenceNumber||formatIncidentReference(); f.elements.title.value=incident?.title||''; f.elements.location.value=incident?.location||''; f.elements.description.value=incident?.description||''; f.elements.occasion.value=incident?.occasion??2; $('#incident-dialog-title').textContent=incident?'Einsatz bearbeiten':'Neuer Einsatz'; $('#incident-submit').textContent=incident?'Änderungen speichern':'Einsatz eröffnen'; $('#incident-dialog').showModal(); }
 function openResourceDialog(resource=null) { const f=$('#resource-form'); f.reset(); f.elements.id.value=resource?.id||''; f.elements.callSign.value=resource?.callSign||''; f.elements.name.value=resource?.name||''; $('#resource-dialog-title').textContent=resource?'Einsatzmittel bearbeiten':'Einsatzmittel anlegen'; $('#resource-dialog').showModal(); }
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
 $('#refresh-runtime').onclick=loadRuntimeStatus;
-$('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModal(); loadUserManagement(); };
+$('#new-user').onclick=openUserDialog;
+$('#refresh-users').onclick=loadUserManagement;
+$('#generate-user-password').onclick=()=>{ $('#user-form').elements.temporaryPassword.value=generateTemporaryPassword(); };
+$('#copy-user-password').onclick=copyTemporaryPassword;
 document.querySelectorAll('.gis-draw').forEach(button=>button.onclick=()=>startGisDraw(button.dataset.type));
 $('#gis-stop-edit').onclick=stopGisEdit;
 $('#gis-edit-selected').onclick=()=>{stopGisEdit();const features=gisSelect.getFeatures();if(!features.getLength()){toast('Zuerst ein GIS-Objekt auswählen',true);return;}gisEditInteraction=new ol.interaction.Modify({features});gisMap.addInteraction(gisEditInteraction);gisEditInteraction.on('modifyend',async event=>{try{for(const feature of event.features.getArray())await saveGisFeature(feature,feature.get('id')||feature.getId());toast('GIS-Objekt geändert');}catch(error){toast(error.message,true);}});$('#gis-map-status').textContent='Ausgewählte Geometrie ändern';};
@@ -639,7 +673,7 @@ $('#person-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEn
 $('#evidence-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.status=+data.status;try{await api(`/api/v1/cases/${caseId}/evidence`,{method:'POST',body:JSON.stringify(data)});$('#evidence-dialog').close();toast('Asservat angelegt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#document-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId;delete data.caseId;data.type=+data.type;try{await api(`/api/v1/cases/${caseId}/documents`,{method:'POST',body:JSON.stringify(data)});$('#document-dialog').close();toast('Schreiben erstellt');await loadAll();await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId,documentId=data.documentId;delete data.caseId;delete data.documentId;try{await api(`/api/v1/cases/${caseId}/documents/${documentId}/dispatches`,{method:'POST',body:JSON.stringify(data)});$('#dispatch-dialog').close();toast('Schreiben abverfügt');await selectCase(caseId);}catch(error){toast(error.message,true);}};
-$('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});e.target.reset();toast('Benutzer wurde in Keycloak angelegt');await loadUserManagement();}catch(error){toast(error.message,true);}};
+$('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const button=$('#create-user-submit');button.disabled=true;try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});$('#user-dialog').close();e.target.reset();toast(`Benutzer ${data.username} wurde angelegt`);await loadUserManagement();}catch(error){toast(error.message,true);}finally{button.disabled=false;}};
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
 setInterval(()=>{if(!$('#runtime-view').classList.contains('hidden')&&!document.hidden)loadRuntimeStatus();},30000);
 let addressTimer;

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Dorfpolizei Well – Einsatz- und Fallbearbeitung</title>
-  <link rel="stylesheet" href="/app.css?v=20260917-3">
-  <link rel="stylesheet" href="/police.css?v=20260917-3">
+  <link rel="stylesheet" href="/app.css?v=20260917-4">
+  <link rel="stylesheet" href="/police.css?v=20260917-4">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.10.0/ol.css">
 </head>
 <body>
@@ -20,7 +20,7 @@
       <button class="nav-item" data-view="cases"><span>▤</span>Fallakten</button>
       <button class="nav-item hidden" data-view="gis" id="gis-nav"><span>⌖</span>GIS-Lage</button>
       <button class="nav-item" data-view="runtime"><span>●</span>Laufzeitstatus</button>
-      <button class="nav-item hidden" id="new-user"><span>♙</span>Benutzer verwalten</button>
+      <button class="nav-item hidden" data-view="users" id="users-nav"><span>♙</span>Benutzerverwaltung</button>
       <a class="nav-item hidden" id="api-link" href="/swagger" target="_blank"><span>↗</span>API</a>
       <div class="sidebar-foot"><small>Organisation</small><code>1111…1111</code><span>Lokaler Testbetrieb</span></div>
     </nav>
@@ -61,6 +61,14 @@
         <p class="runtime-explanation">Diese Prüfungen erkennen öffentliche URLs, die nur im Container funktionieren, auf <code>localhost</code> zeigen, durch CORS blockiert werden oder nicht per HTTPS erreichbar sind.</p>
         <div class="runtime-grid" id="runtime-browser-checks"></div>
       </section>
+      <section id="users-view" class="view hidden">
+        <div class="page-head"><div><p class="eyebrow">Administration</p><h1>Benutzerverwaltung</h1><p>Leitweb-Zugänge anlegen und GIS-Berechtigungen verständlich verwalten.</p></div><button type="button" class="primary" id="new-user">+ Benutzer anlegen</button></div>
+        <div class="user-info panel"><div><strong>Sichere Standardberechtigungen</strong><p>Neue Benutzer erhalten automatisch die fachlichen Leitweb-Rechte. Administrationsrechte werden nicht weitergegeben.</p></div><span>Keycloak-gesichert</span></div>
+        <section class="panel user-panel">
+          <div class="panel-head"><div><h2>Vorhandene Benutzer</h2><p>GIS-Zugriff kann pro Benutzer angepasst werden.</p></div><button type="button" class="secondary" id="refresh-users">Aktualisieren</button></div>
+          <div id="user-role-list" class="user-role-list"><div class="loading">Benutzer werden geladen …</div></div>
+        </section>
+      </section>
     </main>
   </div>
 
@@ -86,9 +94,9 @@
   <dialog id="evidence-dialog"><form id="evidence-form"><input type="hidden" name="caseId"><div class="dialog-head"><div><p class="eyebrow">Asservatenverwaltung</p><h2>Asservat anlegen</h2></div><button type="button" class="icon-button close-dialog">×</button></div><label>Asservatennummer<input name="evidenceNumber" required placeholder="AS-001"></label><label>Beschreibung<textarea name="description" required rows="3"></textarea></label><label>Aufbewahrungsort<input name="storageLocation" required placeholder="Asservatenkammer / Fach"></label><input type="hidden" name="status" value="1"><div class="dialog-actions"><button type="button" class="secondary close-dialog">Abbrechen</button><button class="primary">Asservat übernehmen</button></div></form></dialog>
   <dialog id="document-dialog"><form id="document-form"><input type="hidden" name="caseId"><div class="dialog-head"><div><p class="eyebrow">Schriftgut</p><h2>Schreiben erstellen</h2></div><button type="button" class="icon-button close-dialog">×</button></div><label>Schreibenstyp<select name="type"><option value="0">Kurzbericht</option><option value="1">Strafanzeige</option><option value="2">Einsatzbericht</option><option value="3">Zeugenvernehmung</option><option value="4">Sicherstellungsprotokoll</option><option value="5">Übersendungsschreiben</option><option value="6">Abschlussbericht</option><option value="7">Sonstiges Schreiben</option></select></label><label>Titel<input name="title" placeholder="Wird aus dem Typ vorbelegt"></label><label>Inhalt<textarea name="content" rows="8" placeholder="Leer lassen, um eine Vorlage aus den Falldaten zu erzeugen"></textarea></label><div class="dialog-actions"><button type="button" class="secondary close-dialog">Abbrechen</button><button class="primary">Schreiben anlegen</button></div></form></dialog>
   <dialog id="dispatch-dialog"><form id="dispatch-form"><input type="hidden" name="caseId"><input type="hidden" name="documentId"><div class="dialog-head"><div><p class="eyebrow">Abverfügung</p><h2>Schreiben abverfügen</h2></div><button type="button" class="icon-button close-dialog">×</button></div><label>Empfangsstelle<select name="recipient"><option>Polizeipräsidium – Führungs- und Lagedienst</option><option>Kriminalpolizei</option><option>Staatsanwaltschaft</option><option>Amtsgericht</option><option>Ordnungsamt</option><option>Jugendamt</option><option>Ausländerbehörde</option><option>Straßenverkehrsbehörde</option><option>Andere Polizeidienststelle</option></select></label><label>Bezugszeichen<input name="reference"></label><label>Verfügung / Hinweis<textarea name="note" rows="3"></textarea></label><div class="dialog-actions"><button type="button" class="secondary close-dialog">Abbrechen</button><button class="primary">Abverfügen</button></div></form></dialog>
-  <dialog id="user-dialog" class="wide-dialog"><div class="dialog-body"><div class="dialog-head"><div><p class="eyebrow">Keycloak</p><h2>Benutzer verwalten</h2></div><button type="button" class="icon-button close-dialog">×</button></div><section><h3 class="section-title">GIS-Berechtigungen</h3><div id="user-role-list" class="user-role-list"><div class="loading">Benutzer werden geladen …</div></div></section><form id="user-form" class="embedded-form"><h3 class="section-title">Neuen Benutzer anlegen</h3><label>Benutzername<input name="username" required minlength="3" maxlength="100" autocomplete="off"></label><div class="form-grid"><label>Vorname<input name="firstName" required maxlength="100"></label><label>Nachname<input name="lastName" required maxlength="100"></label></div><label>E-Mail-Adresse<input name="email" type="email" maxlength="254"></label><label>Temporäres Kennwort<input name="temporaryPassword" type="password" required minlength="12" autocomplete="new-password"></label><p class="detail-location">Der neue Benutzer muss das Kennwort bei der ersten Anmeldung ändern.</p><div class="dialog-actions"><button type="button" class="secondary close-dialog">Schließen</button><button class="primary">Benutzer anlegen</button></div></form></div></dialog>
+  <dialog id="user-dialog" class="wide-dialog"><form id="user-form"><div class="dialog-head"><div><p class="eyebrow">Neuer Zugang</p><h2>Benutzer anlegen</h2></div><button type="button" class="icon-button close-dialog">×</button></div><div class="form-grid"><label>Vorname<input name="firstName" required maxlength="100" autocomplete="given-name"></label><label>Nachname<input name="lastName" required maxlength="100" autocomplete="family-name"></label></div><label>Benutzername<input name="username" required minlength="3" maxlength="100" autocomplete="off" placeholder="z. B. m.mustermann"><small>3 bis 100 Zeichen, ohne Leerzeichen</small></label><label>E-Mail-Adresse<input name="email" type="email" required maxlength="254" autocomplete="email"></label><label>GIS-Berechtigung<select name="gisRole"><option value="">Kein GIS-Zugriff</option><option value="gis-sehen">GIS ansehen</option><option value="gis-objekte-aendern">GIS ansehen und Objekte bearbeiten</option><option value="gis-vollzugriff">GIS-Vollzugriff</option></select></label><label>Temporäres Kennwort<div class="password-control"><input name="temporaryPassword" type="text" required minlength="12" autocomplete="new-password"><button type="button" class="secondary" id="generate-user-password">Neu erzeugen</button><button type="button" class="secondary" id="copy-user-password">Kopieren</button></div><small>Das Kennwort wird nur hier angezeigt. Beim ersten Login muss es geändert werden.</small></label><div class="permission-note"><strong>Wird automatisch vergeben</strong><span>Einsätze, Einsatzmittel und Fallakten bearbeiten · keine Benutzeradministration</span></div><div class="dialog-actions"><button type="button" class="secondary close-dialog">Abbrechen</button><button class="primary" id="create-user-submit">Benutzer anlegen</button></div></form></dialog>
   <div id="toast" role="status"></div>
   <script src="https://cdn.jsdelivr.net/npm/ol@10.10.0/dist/ol.js"></script>
-  <script src="/app.js?v=20260917-3"></script>
+  <script src="/app.js?v=20260917-4"></script>
 </body>
 </html>

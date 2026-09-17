@@ -181,7 +181,7 @@ Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. I
 
 ### Benutzerverwaltung
 
-Die einfache Benutzeranlage erscheint nur für angemeldete Benutzer mit der Keycloak-Realm-Rolle `user-admin`. Der API-Endpunkt prüft diese Rolle zusätzlich serverseitig. Neue Benutzer erhalten die normalen fachlichen Leitweb-Berechtigungen und ein beim ersten Login zu änderndes temporäres Kennwort; die Rolle `user-admin` wird nicht weitergegeben.
+Die integrierte Benutzerverwaltung erscheint nur für angemeldete Benutzer mit der Keycloak-Realm-Rolle `user-admin`. Der API-Endpunkt prüft diese Rolle zusätzlich serverseitig. Dort lassen sich Konten mit Kontaktdaten, automatisch erzeugtem temporärem Kennwort und einer optionalen GIS-Zugriffsstufe anlegen. Neue Benutzer erhalten die normalen fachlichen Leitweb-Berechtigungen und müssen das Kennwort beim ersten Login ändern; die Rolle `user-admin` wird nicht weitergegeben.
 
 Für den Zugriff der API auf die Keycloak Admin REST API wird im Realm `leitweb` einmalig ein eigener Service-Account eingerichtet:
 
@@ -198,7 +198,7 @@ Benutzer mit `user-admin` können in Leitweb außerdem jedem Keycloak-Benutzer g
 
 Bei einem neu importierten Realm werden diese Rollen aus `deploy/keycloak/leitweb-realm.json` angelegt. Keycloak aktualisiert einen bereits vorhandenen Realm beim Containerneustart nicht aus der Importdatei. In einem bestehenden Realm müssen die drei Rollen deshalb einmal mit denselben Namen und Composite-Beziehungen angelegt werden. Danach erscheinen sie ohne weitere Anwendungskonfiguration in der Benutzerverwaltung.
 
-Zusätzlich muss unter `Realm settings` → `User profile` ein Attribut mit dem Namen `permissions` angelegt werden. Es wird als mehrwertig konfiguriert; Benutzer und Administratoren dürfen es sehen, aber nur Administratoren bearbeiten. Keycloak 26 ignoriert unbekannte Attribute standardmäßig. Ohne diese User-Profile-Definition würde ein Benutzer zwar angelegt, sein Access-Token enthielte aber keine fachlichen Berechtigungen und die API antwortete mit HTTP 403. Leitweb prüft deshalb nach der Anlage, ob Keycloak die Berechtigungen gespeichert hat, und entfernt einen andernfalls unbrauchbaren neuen Datensatz wieder.
+Der Realm-Import richtet unter `Realm settings` → `User profile` außerdem das mehrwertige Attribut `permissions` ein. In einem bereits vorhandenen Realm muss dieses Attribut einmal manuell ergänzt werden; Benutzer und Administratoren dürfen es sehen, aber nur Administratoren bearbeiten. Keycloak 26 ignoriert unbekannte Attribute standardmäßig. Ohne diese User-Profile-Definition würde ein Benutzer zwar angelegt, sein Access-Token enthielte aber keine fachlichen Berechtigungen und die API antwortete mit HTTP 403. Leitweb prüft deshalb nach der Anlage, ob Keycloak die Berechtigungen gespeichert hat, und entfernt einen andernfalls unbrauchbaren neuen Datensatz wieder.
 
 Das Service-Account-Secret gehört ausschließlich in Dockhand beziehungsweise eine lokale `.env` und darf nicht in Git gespeichert werden.
 

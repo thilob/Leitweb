@@ -49,7 +49,18 @@ public sealed class KeycloakUserService
             && attributes.TryGetProperty("permissions", out var permissions)
             && permissions.ValueKind == JsonValueKind.Array
             && Permissions.All.All(expected => permissions.EnumerateArray().Any(value => value.GetString() == expected));
-        if (permissionsStored) return CreateKeycloakUserResult.Created;
+        if (permissionsStored)
+        {
+            var userId = userUrl.TrimEnd('/').Split('/')[^1];
+            if (user.GisRole is null) return CreateKeycloakUserResult.Created;
+            var roleResult = await SetGisRoleAsync(userId, user.GisRole, ct);
+            if (roleResult == UpdateGisRolesResult.Updated) return CreateKeycloakUserResult.Created;
+
+            using var rollbackRequest = new HttpRequestMessage(HttpMethod.Delete, userUrl);
+            rollbackRequest.Headers.Authorization = request.Headers.Authorization;
+            using var rollbackResponse = await _http.SendAsync(rollbackRequest, ct);
+            return CreateKeycloakUserResult.GisRoleRejected;
+        }
 
         using var deleteRequest = new HttpRequestMessage(HttpMethod.Delete, userUrl);
         deleteRequest.Headers.Authorization = request.Headers.Authorization;
@@ -68,6 +79,7 @@ public sealed class KeycloakUserService
         var result = new List<KeycloakUserSummary>();
         foreach (var user in users.EnumerateArray())
         {
+            if (user.TryGetProperty("serviceAccountClientId", out _)) continue;
             var id = user.GetProperty("id").GetString()!;
             var roles = await GetAssignedGisRolesAsync(admin, id, ct);
             result.Add(new KeycloakUserSummary(id, Value(user, "username"), Value(user, "firstName"),
@@ -152,7 +164,7 @@ public sealed class KeycloakUserService
     }
 }
 
-public sealed record NewKeycloakUser(string Username, string FirstName, string LastName, string? Email, string TemporaryPassword);
+public sealed record NewKeycloakUser(string Username, string FirstName, string LastName, string Email, string TemporaryPassword, string? GisRole);
 public sealed record KeycloakUserSummary(string Id, string Username, string FirstName, string LastName, string Email, IReadOnlyList<string> GisRoles);
-public enum CreateKeycloakUserResult { Created, AlreadyExists, NotConfigured, KeycloakRejected, UserProfileRejectedPermissions }
+public enum CreateKeycloakUserResult { Created, AlreadyExists, NotConfigured, KeycloakRejected, UserProfileRejectedPermissions, GisRoleRejected }
 public enum UpdateGisRolesResult { Updated, InvalidRole, UserNotFound, NotConfigured, RolesNotConfigured, KeycloakRejected }
