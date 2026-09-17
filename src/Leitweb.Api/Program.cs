@@ -107,9 +107,16 @@ app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
     useTestAuthentication
 }));
 app.UseDefaultFiles();
-app.UseStaticFiles();
-app.MapGet("/status", (IWebHostEnvironment environment) =>
-    Results.File(Path.Combine(environment.WebRootPath, "index.html"), "text/html; charset=utf-8"));
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+        context.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate"
+});
+app.MapGet("/status", (HttpContext context, IWebHostEnvironment environment) =>
+{
+    context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+    return Results.File(Path.Combine(environment.WebRootPath, "index.html"), "text/html; charset=utf-8");
+});
 app.UseWebSockets();
 app.UseAuthentication();
 app.UseAuthorization();

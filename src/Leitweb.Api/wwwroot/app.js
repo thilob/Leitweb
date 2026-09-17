@@ -422,6 +422,16 @@ async function probeBrowserEndpoint(id, name, endpoint) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {...options, signal:controller.signal});
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function loadRuntimeStatus() {
   if (runtimeStatusLoading) return;
   runtimeStatusLoading = true;
@@ -431,7 +441,10 @@ async function loadRuntimeStatus() {
   $('#runtime-server-checks').innerHTML = '<div class="loading">Docker-Dienste werden abgefragt …</div>';
   $('#runtime-browser-checks').innerHTML = '<div class="loading">Öffentliche Endpunkte werden abgefragt …</div>';
   try {
-    const [statusResponse, configResponse] = await Promise.all([fetch('/health/status',{cache:'no-store'}),fetch('/app-config.json',{cache:'no-store'})]);
+    const [statusResponse, configResponse] = await Promise.all([
+      fetchWithTimeout('/health/status',{cache:'no-store'}),
+      fetchWithTimeout('/app-config.json',{cache:'no-store'})
+    ]);
     if (!statusResponse.ok) throw new Error(`Status-Endpunkt antwortet mit HTTP ${statusResponse.status}.`);
     const status = await statusResponse.json();
     const config = configResponse.ok ? await configResponse.json() : {};
@@ -449,7 +462,8 @@ async function loadRuntimeStatus() {
     $('#runtime-summary').innerHTML = `<div class="runtime-summary-main"><span class="runtime-dot ${healthy?'healthy':'unhealthy'}"></span><div><strong>${healthy?'Alle Dienste erreichbar':'Mindestens ein Dienst ist gestört'}</strong><span>${healthy?'Interne und öffentliche Endpunkte antworten.':'Die roten Karten enthalten Ursache und nächsten Prüfschritt.'}</span></div></div><div class="runtime-summary-meta">${escapeHtml(status.environment)}<br>${new Date(status.checkedAt).toLocaleString('de-DE')}</div>`;
     document.querySelector('.system-state .pulse')?.classList.toggle('runtime-error',!healthy);
   } catch (error) {
-    const failed = {name:'Leitweb Status-Endpunkt',status:'unhealthy',detail:error.message,endpoint:`${location.origin}/health/status`,durationMs:0,hint:'API-Container, Portfreigabe und Reverse Proxy prüfen.'};
+    const timeout = error.name === 'AbortError';
+    const failed = {name:'Leitweb Status-Endpunkt',status:'unhealthy',detail:timeout?'Zeitüberschreitung beim Abruf des Status-Endpunkts.':error.message,endpoint:`${location.origin}/health/status`,durationMs:0,hint:timeout?'API-Protokoll und blockierte Dienstprüfung kontrollieren.':'API-Container, Portfreigabe und Reverse Proxy prüfen.'};
     $('#runtime-summary').innerHTML = '<div class="runtime-summary-main"><span class="runtime-dot unhealthy"></span><div><strong>Status nicht abrufbar</strong><span>Bereits die Leitweb-API ist aus dem Browser nicht erreichbar.</span></div></div>';
     $('#runtime-server-checks').innerHTML = runtimeCard(failed);
     $('#runtime-browser-checks').innerHTML = '';
