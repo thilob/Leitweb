@@ -183,12 +183,13 @@ Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. I
 
 Die integrierte Benutzerverwaltung erscheint nur für angemeldete Benutzer mit der Keycloak-Realm-Rolle `user-admin`. Der initiale Benutzer `dispatcher` erhält diese Rolle beim Realm-Import und kann die Benutzerverwaltung nach einer neuen Anmeldung über den gleichnamigen Menüpunkt öffnen. Der API-Endpunkt prüft die Rolle zusätzlich serverseitig. Dort lassen sich Konten mit Kontaktdaten, automatisch erzeugtem temporärem Kennwort und einer optionalen GIS-Zugriffsstufe anlegen. Neue Benutzer erhalten die normalen fachlichen Leitweb-Berechtigungen und müssen das Kennwort beim ersten Login ändern; die Rolle `user-admin` wird nicht weitergegeben.
 
-Für den Zugriff der API auf die Keycloak Admin REST API wird im Realm `leitweb` einmalig ein eigener Service-Account eingerichtet:
+Für den Zugriff der API auf die Keycloak Admin REST API richtet der Realm-Import den vertraulichen Client `leitweb-user-admin` mit einem eigenen Service-Account automatisch ein. Das Secret wird beim Import aus der Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` eingesetzt und steht nicht in der Importdatei. Der Service-Account erhält ausschließlich folgende Rollen des Clients `realm-management`:
 
-1. Client `leitweb-user-admin` anlegen, Client-Authentifizierung und Service-Accounts aktivieren.
-2. Dem Service-Account unter den Client-Rollen von `realm-management` die Rollen `manage-users`, `view-users` und `view-realm` zuweisen. `view-realm` wird benötigt, um die für Benutzer auswählbaren GIS-Rollen aufzulösen.
-3. Das Client-Secret als Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` hinterlegen.
-4. Die Realm-Rolle `user-admin` nur den Benutzern zuweisen, die neue Konten anlegen dürfen. Nach einer Rollenzuweisung ist eine erneute Anmeldung erforderlich.
+- `manage-users`
+- `view-users`
+- `view-realm` – wird benötigt, um die auswählbaren GIS-Rollen aufzulösen
+
+Die Realm-Rolle `user-admin` darf nur Benutzern zugewiesen werden, die neue Konten anlegen dürfen. Nach einer Rollenzuweisung ist eine erneute Anmeldung erforderlich. Bei einem bereits vorhandenen Realm wird der Import von Keycloak übersprungen; dort muss der Client einmalig manuell eingerichtet oder der Realm mit den neuen Importdaten neu erstellt werden.
 
 Benutzer mit `user-admin` können in Leitweb außerdem jedem Keycloak-Benutzer genau eine der folgenden hierarchischen GIS-Zugriffsstufen zuweisen:
 
