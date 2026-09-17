@@ -1,4 +1,5 @@
 using Leitweb.Api.Data;
+using Leitweb.Api.Diagnostics;
 using Leitweb.Api.Realtime;
 using Leitweb.Api.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,6 +10,8 @@ builder.Services.AddControllers().AddJsonOptions(options => options.JsonSerializ
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient<KeycloakUserService>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<RuntimeStatusService>();
 builder.Services.AddSingleton<LiveUpdateHub>();
 var useInMemoryDatabase = builder.Configuration.GetValue<bool>("Development:UseInMemoryDatabase");
 builder.Services.AddDbContext<LeitwebDbContext>(options =>
@@ -100,10 +103,13 @@ app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
 {
     authority = configuration["Authentication:PublicAuthority"] ?? configuration["Authentication:Authority"],
     clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"],
+    qgisPublicUrl = configuration["Gis:QgisPublicUrl"],
     useTestAuthentication
 }));
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.MapGet("/status", (IWebHostEnvironment environment) =>
+    Results.File(Path.Combine(environment.WebRootPath, "index.html"), "text/html; charset=utf-8"));
 app.UseWebSockets();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -121,6 +127,8 @@ app.MapGet("/ws/updates", async (HttpContext context, LiveUpdateHub updates) =>
 app.MapGet("/health/live", () => Results.Ok(new { status = "healthy" }));
 app.MapGet("/health/ready", async (LeitwebDbContext db, CancellationToken ct) =>
     await db.Database.CanConnectAsync(ct) ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
+app.MapGet("/health/status", async (RuntimeStatusService status, CancellationToken ct) =>
+    Results.Ok(await status.CheckAsync(ct)));
 app.Run();
 
 public partial class Program { }

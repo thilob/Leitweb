@@ -14,6 +14,7 @@ let liveReloadTimer;
 let simulationTimer;
 let pendingTransmittedIncident;
 let notificationAudioContext;
+let runtimeStatusLoading = false;
 let gisMap;
 let gisVectorSource;
 let gisVectorLayer;
@@ -63,7 +64,12 @@ const formatDate = value => new Intl.DateTimeFormat('de-DE', {day:'2-digit',mont
 async function api(path, options = {}) {
   await refreshAccessToken();
   const authorization = auth.accessToken ? {Authorization:`Bearer ${auth.accessToken}`} : {};
-  const response = await fetch(path, { ...options, headers: {'Content-Type':'application/json',...authorization, ...(options.headers || {})} });
+  let response;
+  try {
+    response = await fetch(path, { ...options, headers: {'Content-Type':'application/json',...authorization, ...(options.headers || {})} });
+  } catch (error) {
+    throw new Error(`API nicht erreichbar (${path}). Ursache und Dienststatus unter „Laufzeitstatus“ prüfen.`, {cause:error});
+  }
   if (!response.ok) {
     let message = `Fehler ${response.status}`;
     try { const body = await response.json(); message = body.detail || body.title || message; } catch {}
@@ -390,6 +396,66 @@ function openRelatedDialog(type,caseId){const f=$(`#${type}-form`);f.reset();f.e
 function toast(message, error=false) { const el=$('#toast'); el.textContent=message; el.style.background=error?'#8f2924':''; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
 function showView(name) { document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden')); $(`#${name}-view`).classList.remove('hidden'); document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===name)); }
 
+function runtimeCard(check) {
+  const healthy = check.status === 'healthy';
+  return `<article class="runtime-card"><span class="runtime-dot ${healthy?'healthy':'unhealthy'}"></span><div><h3>${escapeHtml(check.name)}</h3><p>${escapeHtml(check.detail)}</p>${check.endpoint?`<code>${escapeHtml(check.endpoint)}</code>`:''}${check.hint?`<p class="runtime-hint">${escapeHtml(check.hint)}</p>`:''}<span class="runtime-duration">${Number.isFinite(check.durationMs)?`${check.durationMs} ms · `:''}${healthy?'Erreichbar':'Fehler'}</span></div></article>`;
+}
+
+function localHostname(hostname) { return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'; }
+
+async function probeBrowserEndpoint(id, name, endpoint) {
+  const started = performance.now();
+  if (!endpoint) return {id,name,status:'unhealthy',detail:'Keine öffentliche URL konfiguriert.',endpoint:null,durationMs:0,hint:'Die öffentliche URL in der Docker-Konfiguration setzen.'};
+  let target;
+  try { target = new URL(endpoint, location.origin); }
+  catch { return {id,name,status:'unhealthy',detail:'Die konfigurierte URL ist ungültig.',endpoint,durationMs:0,hint:'Schema, Hostname und Port der URL prüfen.'}; }
+  if (localHostname(target.hostname) && !localHostname(location.hostname)) return {id,name,status:'unhealthy',detail:`Die URL zeigt auf ${target.hostname}. Im Browser bezeichnet das den Rechner des Benutzers, nicht den Docker-Host.`,endpoint:target.href,durationMs:0,hint:'Eine vom Browser erreichbare IP oder einen DNS-Namen als öffentliche URL konfigurieren.'};
+  if (location.protocol === 'https:' && target.protocol === 'http:') return {id,name,status:'unhealthy',detail:'Der Browser blockiert HTTP-Inhalte innerhalb einer HTTPS-Seite (Mixed Content).',endpoint:target.href,durationMs:0,hint:'Den Dienst ebenfalls über HTTPS bereitstellen.'};
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(()=>controller.abort(),6500);
+    const response = await fetch(target, {signal:controller.signal,cache:'no-store'}).finally(()=>clearTimeout(timer));
+    return {id,name,status:response.ok?'healthy':'unhealthy',detail:response.ok?'Vom Browser direkt erreichbar.':`Antwortet mit HTTP ${response.status}.`,endpoint:target.href,durationMs:Math.round(performance.now()-started),hint:response.ok?null:'Öffentliche Weiterleitung und Dienstprotokoll prüfen.'};
+  } catch (error) {
+    const timeout = error.name === 'AbortError';
+    return {id,name,status:'unhealthy',detail:timeout?'Zeitüberschreitung beim Browserzugriff.':'Browserzugriff fehlgeschlagen (Netzwerk, DNS, TLS oder CORS).',endpoint:target.href,durationMs:Math.round(performance.now()-started),hint:timeout?'Host, Port und Firewall prüfen.':'Wenn die interne Prüfung grün ist: öffentliche URL, Reverse Proxy und CORS-Header prüfen.'};
+  }
+}
+
+async function loadRuntimeStatus() {
+  if (runtimeStatusLoading) return;
+  runtimeStatusLoading = true;
+  const button = $('#refresh-runtime');
+  button.disabled = true;
+  $('#runtime-summary').innerHTML = '<div class="runtime-summary-main"><span class="runtime-dot checking"></span><div><strong>Prüfung läuft</strong><span>Die Antworten können bis zu einigen Sekunden dauern.</span></div></div>';
+  $('#runtime-server-checks').innerHTML = '<div class="loading">Docker-Dienste werden abgefragt …</div>';
+  $('#runtime-browser-checks').innerHTML = '<div class="loading">Öffentliche Endpunkte werden abgefragt …</div>';
+  try {
+    const [statusResponse, configResponse] = await Promise.all([fetch('/health/status',{cache:'no-store'}),fetch('/app-config.json',{cache:'no-store'})]);
+    if (!statusResponse.ok) throw new Error(`Status-Endpunkt antwortet mit HTTP ${statusResponse.status}.`);
+    const status = await statusResponse.json();
+    const config = configResponse.ok ? await configResponse.json() : {};
+    const qgisUrl = status.publicEndpoints?.qgis || config.qgisPublicUrl;
+    const qgisProbeUrl = qgisUrl ? `${qgisUrl}${qgisUrl.includes('?')?'&':'?'}SERVICE=WMS&REQUEST=GetCapabilities` : null;
+    const browserChecks = await Promise.all([
+      probeBrowserEndpoint('api-browser','Leitweb API (Browser)',new URL('/health/live',location.origin).href),
+      probeBrowserEndpoint('identity-browser','Keycloak (Browser)',status.publicEndpoints?.identity ? `${status.publicEndpoints.identity.replace(/\/$/,'')}/.well-known/openid-configuration` : config.authority ? `${config.authority.replace(/\/$/,'')}/.well-known/openid-configuration` : null),
+      probeBrowserEndpoint('qgis-browser','QGIS WMS (Browser)',qgisProbeUrl)
+    ]);
+    const allChecks = [...status.services,...browserChecks];
+    const healthy = allChecks.every(check=>check.status==='healthy');
+    $('#runtime-server-checks').innerHTML = status.services.map(runtimeCard).join('');
+    $('#runtime-browser-checks').innerHTML = browserChecks.map(runtimeCard).join('');
+    $('#runtime-summary').innerHTML = `<div class="runtime-summary-main"><span class="runtime-dot ${healthy?'healthy':'unhealthy'}"></span><div><strong>${healthy?'Alle Dienste erreichbar':'Mindestens ein Dienst ist gestört'}</strong><span>${healthy?'Interne und öffentliche Endpunkte antworten.':'Die roten Karten enthalten Ursache und nächsten Prüfschritt.'}</span></div></div><div class="runtime-summary-meta">${escapeHtml(status.environment)}<br>${new Date(status.checkedAt).toLocaleString('de-DE')}</div>`;
+    document.querySelector('.system-state .pulse')?.classList.toggle('runtime-error',!healthy);
+  } catch (error) {
+    const failed = {name:'Leitweb Status-Endpunkt',status:'unhealthy',detail:error.message,endpoint:`${location.origin}/health/status`,durationMs:0,hint:'API-Container, Portfreigabe und Reverse Proxy prüfen.'};
+    $('#runtime-summary').innerHTML = '<div class="runtime-summary-main"><span class="runtime-dot unhealthy"></span><div><strong>Status nicht abrufbar</strong><span>Bereits die Leitweb-API ist aus dem Browser nicht erreichbar.</span></div></div>';
+    $('#runtime-server-checks').innerHTML = runtimeCard(failed);
+    $('#runtime-browser-checks').innerHTML = '';
+  } finally { button.disabled = false; runtimeStatusLoading = false; }
+}
+
 function canEditGis() { return auth.roles.includes('gis-objekte-aendern') || auth.roles.includes('gis-vollzugriff'); }
 
 function incidentMarkerColor(status) {
@@ -508,12 +574,13 @@ async function loadUserManagement() {
   } catch (error) { list.innerHTML = `<p class="detail-location">${escapeHtml(error.message)}</p>`; }
 }
 
-document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=async()=>{showView(n.dataset.view);if(n.dataset.view==='cases')await loadAll();if(n.dataset.view==='gis')try{await initializeGis();}catch(error){toast(error.message,true);}});
+document.querySelectorAll('.nav-item[data-view]').forEach(n => n.onclick=async()=>{showView(n.dataset.view);if(n.dataset.view==='cases')await loadAll();if(n.dataset.view==='runtime')await loadRuntimeStatus();if(n.dataset.view==='gis')try{await initializeGis();}catch(error){toast(error.message,true);}});
 document.querySelectorAll('.filter-chip').forEach(b => b.onclick=()=>{state.filter=b.dataset.filter;document.querySelectorAll('.filter-chip').forEach(x=>x.classList.toggle('active',x===b));renderIncidents();});
 $('#case-filter').onchange=e=>{state.caseFilter=e.target.value;renderCases();};
 function openIncidentDialog(incident=null) { const f=$('#incident-form'); f.reset(); f.elements.id.value=incident?.id||''; f.elements.referenceNumber.value=incident?.referenceNumber||formatIncidentReference(); f.elements.title.value=incident?.title||''; f.elements.location.value=incident?.location||''; f.elements.description.value=incident?.description||''; f.elements.occasion.value=incident?.occasion??2; $('#incident-dialog-title').textContent=incident?'Einsatz bearbeiten':'Neuer Einsatz'; $('#incident-submit').textContent=incident?'Änderungen speichern':'Einsatz eröffnen'; $('#incident-dialog').showModal(); }
 function openResourceDialog(resource=null) { const f=$('#resource-form'); f.reset(); f.elements.id.value=resource?.id||''; f.elements.callSign.value=resource?.callSign||''; f.elements.name.value=resource?.name||''; $('#resource-dialog-title').textContent=resource?'Einsatzmittel bearbeiten':'Einsatzmittel anlegen'; $('#resource-dialog').showModal(); }
 $('#new-incident').onclick=()=>openIncidentDialog(); $('#new-resource').onclick=()=>openResourceDialog();
+$('#refresh-runtime').onclick=loadRuntimeStatus;
 $('#new-user').onclick=()=>{ $('#user-form').reset(); $('#user-dialog').showModal(); loadUserManagement(); };
 document.querySelectorAll('.gis-draw').forEach(button=>button.onclick=()=>startGisDraw(button.dataset.type));
 $('#gis-stop-edit').onclick=stopGisEdit;
@@ -536,6 +603,7 @@ $('#document-form').onsubmit=async e=>{e.preventDefault();const data=Object.from
 $('#dispatch-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));const caseId=data.caseId,documentId=data.documentId;delete data.caseId;delete data.documentId;try{await api(`/api/v1/cases/${caseId}/documents/${documentId}/dispatches`,{method:'POST',body:JSON.stringify(data)});$('#dispatch-dialog').close();toast('Schreiben abverfügt');await selectCase(caseId);}catch(error){toast(error.message,true);}};
 $('#user-form').onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api('/api/v1/users',{method:'POST',body:JSON.stringify(data)});e.target.reset();toast('Benutzer wurde in Keycloak angelegt');await loadUserManagement();}catch(error){toast(error.message,true);}};
 setInterval(()=>$('#clock').textContent=new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);
+setInterval(()=>{if(!$('#runtime-view').classList.contains('hidden')&&!document.hidden)loadRuntimeStatus();},30000);
 let addressTimer;
 let addressSearchController;
 $('#incident-form').elements.location.addEventListener('input', e => {
@@ -558,4 +626,12 @@ $('#incident-form').elements.location.addEventListener('input', e => {
     }
   }, 250);
 });
-initializeAuthentication().then(async () => { initializeIncidentSimulation(); await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
+if (location.pathname.replace(/\/$/,'') === '/status') {
+  document.querySelectorAll('.nav-item[data-view]:not([data-view="runtime"])').forEach(item=>item.classList.add('hidden'));
+  $('.simulation-control')?.classList.add('hidden');
+  $('#logout')?.classList.add('hidden');
+  showView('runtime');
+  loadRuntimeStatus();
+} else {
+  initializeAuthentication().then(async () => { initializeIncidentSimulation(); await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
+}

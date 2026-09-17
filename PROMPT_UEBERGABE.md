@@ -1,6 +1,6 @@
 # Übergabe-Prompt für eine neue Codex-Instanz
 
-Du arbeitest im privaten GitHub-Projekt `thilob/Leitweb` auf dem Branch `Dorfpolizei-Well`. Bitte lies zuerst `ANFORDERUNGEN.md`, `README.md` und den aktuellen Git-Status. Bewahre vorhandene Änderungen und arbeite auf diesem Branch weiter, sofern der Benutzer nichts anderes verlangt.
+Du arbeitest im privaten GitHub-Projekt `thilob/Leitweb` auf dem Branch `Dorfpolizei-Well-mit-GIS`. Bitte lies zuerst `ANFORDERUNGEN.md`, `README.md` und den aktuellen Git-Status. Bewahre vorhandene Änderungen und arbeite auf diesem Branch weiter, sofern der Benutzer nichts anderes verlangt.
 
 ## Ziel des Projekts
 
@@ -200,3 +200,69 @@ Die Trefferprüfung ist auf die Ebene `Aktive Einsatzorte` beschränkt und verwe
 - API-Image erfolgreich neu gebaut und Container neu gestartet
 - API-Readiness nach Containerneustart: HTTP 200
 - Ausgeliefertes `app.js` enthält den Click-Handler einschließlich Marker-ID und Treffertoleranz
+
+## Fortführung: Laufzeitstatus und „Failed to fetch“-Diagnose (17.09.2026)
+
+### Ziel und Bedienung
+
+Die Anwendung besitzt jetzt eine Laufzeitstatus-Seite. Sie ist in der Hauptnavigation als **Laufzeitstatus** erreichbar und kann unabhängig von Keycloak direkt unter `/status` geöffnet werden. Beim direkten Aufruf wird keine Anmeldung gestartet; dadurch bleibt die Diagnose auch bei einer falschen oder ausgefallenen öffentlichen Keycloak-Adresse nutzbar. Die Ansicht prüft beim Öffnen, auf Knopfdruck und automatisch alle 30 Sekunden.
+
+Normale Frontend-API-Aufrufe zeigen bei einem Netzwerkfehler nicht mehr nur `Failed to fetch`, sondern nennen den betroffenen API-Pfad und verweisen auf den Laufzeitstatus.
+
+### Serverseitige Prüfungen
+
+`src/Leitweb.Api/Diagnostics/RuntimeStatusService.cs` führt drei voneinander unabhängige Prüfungen mit einer Zeitgrenze von sechs Sekunden aus:
+
+- PostgreSQL/PostGIS über `Database.CanConnectAsync`
+- Keycloak über die interne OIDC-Metadatenadresse `Authentication:MetadataAddress`; ohne expliziten Wert wird die Adresse aus `Authentication:Authority` gebildet
+- QGIS über WMS `GetCapabilities` an `Gis:QgisServerUrl`
+
+`GET /health/status` liefert einen JSON-Bericht mit Gesamtzustand, Prüfzeitpunkt, Umgebung, Status je Dienst, geprüfter URL, Laufzeit, Fehlerdetail, Handlungshinweis sowie den konfigurierten öffentlichen Keycloak- und QGIS-Adressen. Der Endpunkt liefert absichtlich HTTP 200, auch wenn der Bericht `degraded` ist. So kann das Frontend alle Teilergebnisse anzeigen. Die bestehenden Endpunkte `/health/live` und `/health/ready` bleiben unverändert für Liveness und Readiness bestehen.
+
+### Browserprüfungen
+
+Das Frontend prüft zusätzlich aus Sicht des tatsächlich verwendeten Browsers:
+
+- Leitweb über `/health/live`
+- Keycloak über die öffentliche OIDC-Metadatenadresse
+- QGIS über die öffentliche WMS-`GetCapabilities`-Adresse
+
+Es erkennt und erläutert insbesondere öffentliche URLs mit `localhost` bei entferntem Zugriff, HTTP-Unterressourcen auf einer HTTPS-Seite, ungültige URLs, Timeouts sowie nicht unterscheidbare Netzwerk-/DNS-/TLS-/CORS-Fehler. Der Vergleich ist diagnostisch wichtig: Ist ein Dienst intern erreichbar, aber aus dem Browser nicht, liegt die Ursache üblicherweise bei `KEYCLOAK_PUBLIC_URL` beziehungsweise `QGIS_PUBLIC_URL`, DNS, Reverse Proxy, Portfreigabe, TLS oder CORS.
+
+### Compose- und QGIS-Anpassungen
+
+In `docker-compose.yml`, `compose.gis.yml` und `docker-compose.dockhand.yml` wartet die API bei Keycloak nur noch auf `service_started` statt `service_healthy`. Die API benötigt Keycloak nicht zum eigenen Start und kann daher `/status` bereits während eines langen Keycloak-Starts oder bei einem Identity-Ausfall ausliefern. Die Datenbank bleibt wegen Migration und Initialdaten weiterhin mit `service_healthy` eine harte Startabhängigkeit.
+
+Das QGIS-Nginx-Gateway liefert für `/ows` jetzt `Access-Control-Allow-Origin: *`. Der OGC-Endpunkt war bereits ohne Authentifizierung öffentlich; der Header ermöglicht nun zusätzlich die Browserprüfung und browserbasierte WMS-/WFS-Abrufe ohne CORS-Blockade.
+
+`/app-config.json` enthält ergänzend `qgisPublicUrl`. Es werden keine Passwörter oder Client-Secrets im Statusbericht oder in der Browserkonfiguration ausgegeben.
+
+### Betrieb und Fehlersuche
+
+Nach einem Pull muss das Leitweb-Image neu gebaut beziehungsweise in Dockhand mit Build neu ausgerollt werden. Für den getrennten GIS-Stack:
+
+```sh
+git pull
+docker compose -f compose.gis.yml up --build -d
+```
+
+Anschließend `/status` aufrufen. Bei Zugriff von einem anderen Rechner dürfen öffentliche Adressen nicht `localhost` verwenden. Die lokale `.env` des Entwicklungsstands enthält derzeit `KEYCLOAK_PUBLIC_URL=http://localhost:8082` und ist nur für Zugriff auf demselben Rechner geeignet; produktive Dockhand-Werte werden außerhalb von Git verwaltet.
+
+### Dateien dieses Änderungspakets
+
+- `src/Leitweb.Api/Diagnostics/RuntimeStatusService.cs`: interne Laufzeitprüfungen und Berichtstypen
+- `src/Leitweb.Api/Program.cs`: DI-Registrierung, `/status`, `/health/status` und öffentliche QGIS-Konfiguration
+- `src/Leitweb.Api/wwwroot/index.html`: Statusansicht und Navigation
+- `src/Leitweb.Api/wwwroot/app.js`: Browserprüfungen, automatische Aktualisierung und verständlichere Fetch-Fehler
+- `src/Leitweb.Api/wwwroot/app.css`: Statuskarten und responsive Darstellung
+- `deploy/qgis-server/nginx.conf`: CORS für `/ows`
+- alle drei Compose-Dateien: entkoppelter API-Start von Keycloak-Readiness
+- `README.md` und diese Übergabe: Betriebs- und Diagnoseanleitung
+
+### Verifikation und verbleibender Smoke-Test
+
+- `node --check src/Leitweb.Api/wwwroot/app.js` erfolgreich
+- `git diff --check` erfolgreich
+- Ein lokaler .NET-Build war auf diesem Windows-Host nicht möglich, weil nur .NET 6 installiert ist, das Projekt aber SDK 10.0.111 verlangt.
+- Ein lokaler Compose-/Container-Smoke-Test war nicht möglich, weil Docker auf diesem Host nicht installiert ist.
+- Nach dem GitHub-Redeploy müssen deshalb `/status`, `/health/status`, die drei internen Prüfungen und die drei Browserprüfungen einmal in der Zielinstanz kontrolliert werden.

@@ -81,6 +81,31 @@ docker compose ps
 docker compose logs -f api
 ```
 
+### Laufzeitstatus und Fehlerdiagnose
+
+In der Hauptnavigation zeigt **Laufzeitstatus** die Erreichbarkeit von PostgreSQL, Keycloak, QGIS und der Leitweb-API. Die Prüfung läuft beim Öffnen sowie anschließend alle 30 Sekunden; über **Erneut prüfen** kann sie jederzeit manuell gestartet werden. Weil die Diagnose nicht von einer funktionierenden Anmeldung abhängen darf, ist sie zusätzlich direkt unter `/status` erreichbar.
+
+Die Seite unterscheidet zwei Perspektiven:
+
+| Bereich | Prüfung | Typische erkannte Ursache |
+| --- | --- | --- |
+| Docker-Netz | PostgreSQL-Verbindung über den EF-Core-Kontext | Datenbank nicht erreichbar, falsche Zugangsdaten oder Migration/Verbindung gestört |
+| Docker-Netz | Keycloak-OIDC-Metadaten über `Authentication__MetadataAddress` | Container, Docker-DNS, interner Port oder Realm nicht erreichbar |
+| Docker-Netz | QGIS `GetCapabilities` über `Gis__QgisServerUrl` | QGIS Server, Nginx-Gateway oder Projekt nicht erreichbar |
+| Browser | `/health/live` der Leitweb-API | Portfreigabe, Reverse Proxy oder API-Container nicht erreichbar |
+| Browser | öffentliche Keycloak-OIDC-Metadaten | falsche `KEYCLOAK_PUBLIC_URL`, DNS, TLS, CORS oder `localhost` auf einem entfernten Client |
+| Browser | öffentliche QGIS-WMS-Adresse | falsche `QGIS_PUBLIC_URL`, Port, TLS, CORS oder Reverse Proxy |
+
+Jede Kachel zeigt Status, geprüfte URL, Laufzeit, Fehlermeldung und einen nächsten Prüfschritt. Netzwerkfehler in normalen API-Aufrufen verweisen statt des unspezifischen Textes `Failed to fetch` auf diese Seite. Eine intern grüne, im Browser aber rote Prüfung weist meist auf die öffentliche URL, Portweiterleitung, TLS oder CORS hin. Insbesondere dürfen `KEYCLOAK_PUBLIC_URL` und `QGIS_PUBLIC_URL` bei Zugriff von einem anderen Rechner nicht auf `localhost` zeigen.
+
+Die maschinenlesbaren Endpunkte sind:
+
+- `/health/live`: API-Prozess antwortet
+- `/health/ready`: API kann die Datenbank erreichen
+- `/health/status`: ausführlicher Statusbericht einschließlich interner Dienste und öffentlicher Endpunktkonfiguration
+
+`/health/status` liefert auch bei einzelnen gestörten Abhängigkeiten HTTP 200, damit die Oberfläche den vollständigen Bericht darstellen kann; der Gesamtzustand steht im JSON-Feld `status`. Die Compose-Stacks lassen die API bereits starten, sobald der Keycloak-Container gestartet wurde, und warten nicht auf dessen Healthcheck. Dadurch bleibt `/status` während eines Keycloak-Starts oder -Ausfalls erreichbar. Die Datenbank bleibt wegen der beim API-Start ausgeführten Migrationen eine harte Startabhängigkeit. Das QGIS-Nginx-Gateway setzt für `/ows` einen CORS-Header, damit die öffentliche Browserprüfung und browserbasierte OGC-Zugriffe funktionieren.
+
 Sicherung aller Anwendungs- und Keycloak-Daten:
 
 ```sh
@@ -126,7 +151,7 @@ Einsätze und Einsatzmittel tragen eine `organizationId`. Dieser erste Stand fil
 
 - Modularer Monolith als einfacher Ausgangspunkt
 - Zustandslose API und externe PostgreSQL-Datenbank, daher später gut nach Kubernetes übertragbar
-- Health-Endpunkte unter `/health/live` und `/health/ready`
+- Health-Endpunkte unter `/health/live`, `/health/ready` und `/health/status`
 - OpenAPI/Swagger für offenen, dokumentierbaren Datenzugriff
 
 Für PostgreSQL wird das Schema über versionierte EF-Core-Migrationen verwaltet. `EnsureCreated` wird ausschließlich für die flüchtige lokale In-Memory-Vorschau verwendet.
@@ -140,6 +165,15 @@ Der Stack [`docker-compose.dockhand.yml`](docker-compose.dockhand.yml) kann in D
 - `KEYCLOAK_PUBLIC_URL`: vom Browser erreichbare Keycloak-URL, beispielsweise `https://auth.example.org`
 
 Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Der GIS-Dockhand-Stack veröffentlicht Leitweb standardmäßig auf Port `5100`, Keycloak auf Port `8180` und QGIS Server auf Port `8190`; damit kollidiert er nicht mit dem Stack ohne GIS.
+
+Nach dem Aktualisieren des Git-Branches muss das API-Image neu gebaut werden, weil Status-Backend und statische Oberfläche Bestandteil dieses Images sind. In Dockhand ist deshalb ein Redeploy mit aktiviertem Image-Build erforderlich. Mit Compose entspricht dies beispielsweise:
+
+```sh
+git pull
+docker compose -f compose.gis.yml up --build -d
+```
+
+Danach zuerst `http(s)://<Leitweb-Host>/status` aufrufen. Wird Leitweb von einem anderen Rechner geöffnet, müssen `KEYCLOAK_PUBLIC_URL` und `QGIS_PUBLIC_URL` aus genau diesem Browser erreichbar sein.
 
 Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbindung `/ws/updates` unmittelbar an alle geöffneten Leitweb-Clients übertragen. Ein vorgeschalteter Reverse Proxy muss deshalb WebSocket-Upgrades (`Upgrade`/`Connection`) an Leitweb weiterreichen. Der Browser baut eine unterbrochene Verbindung automatisch wieder auf.
 

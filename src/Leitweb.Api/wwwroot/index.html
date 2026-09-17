@@ -19,6 +19,7 @@
       <button class="nav-item" data-view="resources"><span>▦</span>Statusübersicht</button>
       <button class="nav-item" data-view="cases"><span>▤</span>Fallakten</button>
       <button class="nav-item hidden" data-view="gis" id="gis-nav"><span>⌖</span>GIS-Lage</button>
+      <button class="nav-item" data-view="runtime"><span>●</span>Laufzeitstatus</button>
       <button class="nav-item hidden" id="new-user"><span>♙</span>Benutzer verwalten</button>
       <a class="nav-item hidden" id="api-link" href="/swagger" target="_blank"><span>↗</span>API</a>
       <div class="sidebar-foot"><small>Organisation</small><code>1111…1111</code><span>Lokaler Testbetrieb</span></div>
@@ -50,6 +51,15 @@
           <aside class="gis-sidebar"><section><h2>Layer</h2><div id="gis-layer-list" class="gis-layer-list"></div></section><section id="gis-edit-tools" class="hidden"><h2>Objekte bearbeiten</h2><label>Ziellayer<select id="gis-edit-layer"></select></label><div class="gis-tool-grid"><button type="button" class="secondary gis-draw" data-type="Point">Punkt</button><button type="button" class="secondary gis-draw" data-type="LineString">Linie</button><button type="button" class="secondary gis-draw" data-type="Polygon">Fläche</button><button type="button" class="secondary" id="gis-edit-selected">Auswahl ändern</button><button type="button" class="secondary" id="gis-delete-selected">Auswahl löschen</button><button type="button" class="secondary" id="gis-stop-edit">Beenden</button></div></section></aside>
           <div class="gis-map-shell"><div id="gis-map" class="gis-map" aria-label="Interaktive GIS-Karte"></div><div id="gis-map-status" class="gis-map-status">Karte wird geladen …</div></div>
         </div>
+      </section>
+      <section id="runtime-view" class="view hidden">
+        <div class="page-head"><div><p class="eyebrow">Systemdiagnose</p><h1>Laufzeitstatus</h1><p>Erreichbarkeit aus Docker-Netz und Browser · automatische Prüfung alle 30 Sekunden.</p></div><button type="button" class="primary" id="refresh-runtime">Erneut prüfen</button></div>
+        <div class="runtime-summary panel" id="runtime-summary"><div class="loading">Dienste werden geprüft …</div></div>
+        <h2 class="runtime-group-title">Prüfung im Docker-Netz</h2>
+        <div class="runtime-grid" id="runtime-server-checks"></div>
+        <h2 class="runtime-group-title">Prüfung aus diesem Browser</h2>
+        <p class="runtime-explanation">Diese Prüfungen erkennen öffentliche URLs, die nur im Container funktionieren, auf <code>localhost</code> zeigen, durch CORS blockiert werden oder nicht per HTTPS erreichbar sind.</p>
+        <div class="runtime-grid" id="runtime-browser-checks"></div>
       </section>
     </main>
   </div>
