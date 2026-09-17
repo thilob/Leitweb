@@ -84,6 +84,7 @@
       "email": "dispatcher@example.invalid",
       "emailVerified": true,
       "enabled": true,
+      "realmRoles": ["user-admin"],
       "credentials": [{ "type": "password", "value": "change-me", "temporary": true }],
       "attributes": {
         "permissions": ["incident.read", "incident.create", "incident.update", "resource.read", "resource.manage", "case.read", "case.manage", "document.dispatch"]
