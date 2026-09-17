@@ -179,6 +179,20 @@ Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbi
 
 Die Anmeldung wird weiterhin über die öffentliche Keycloak-Adresse durchgeführt. Den Austausch des Autorisierungscodes und die spätere Token-Erneuerung leitet Leitweb dagegen über den gleich-originigen Endpunkt `/auth/token` an Keycloak im Docker-Netz weiter. Dadurch bleiben angemeldete Browser-Sitzungen funktionsfähig, auch wenn der öffentliche Keycloak-Port für browserseitige Fetch-Aufrufe eingeschränkt ist.
 
+### Übergabestand vom 18. September 2026
+
+Der Branch `Dorfpolizei-Well-mit-GIS` enthält den aktuellen Dockhand-Stand. In der Produktivumgebung wurden PostgreSQL/PostGIS, Keycloak, Leitweb und QGIS zuletzt über die Laufzeitdiagnose als gesund geprüft. Die Benutzeranlage und GIS-Rollenzuweisung wurden über die Leitweb-API erfolgreich getestet; temporäre Prüfdaten wurden anschließend entfernt.
+
+Der derzeit noch ausstehende Schritt ist ein Dockhand-Redeployment des aktuellen Branches. Es aktiviert die Frontend-Version `v20260918-6` und den gleich-originigen Token-Endpunkt. Danach sind folgende Punkte zu prüfen:
+
+1. `/app-config.json` enthält `"tokenEndpoint":"/auth/token"`.
+2. Ab- und erneute Anmeldung als `dispatcher`; der Menüpunkt **Benutzerverwaltung** ist sichtbar.
+3. Einsatzübersicht und Fallakten laden auch nach Ablauf beziehungsweise Erneuerung des Access-Tokens.
+4. Die Adresssuche liefert für `Well 8` unter anderem `Well 8, Wermelskirchen`, ohne das Einsatzformular zu schließen.
+5. Benutzerliste, Benutzeranlage und GIS-Rollenzuweisung funktionieren ohne HTTP 503.
+
+Der Serviceclient `leitweb-user-admin` wurde in der laufenden Produktivumgebung einmalig wiederhergestellt. Für neue Realms legt der Import ihn nun automatisch mit den Rollen `manage-users`, `view-users` und `view-realm` an. Keycloak überspringt den Realm-Import bei einer bereits vorhandenen Datenbank; ein normaler Containerneustart verändert daher bestehende Realm-Daten nicht.
+
 Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. Im GIS-Branch bleiben PostgreSQL-Daten im eigenständigen Volume `leitweb-gis-postgres` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
 
 ### Benutzerverwaltung
