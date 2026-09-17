@@ -102,10 +102,45 @@ app.Use(async (context, next) =>
 app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
 {
     authority = configuration["Authentication:PublicAuthority"] ?? configuration["Authentication:Authority"],
+    tokenEndpoint = "/auth/token",
     clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"],
     qgisPublicUrl = configuration["Gis:QgisPublicUrl"],
     useTestAuthentication
 }));
+app.MapPost("/auth/token", async (HttpContext context, IConfiguration configuration,
+    IHttpClientFactory httpClientFactory, CancellationToken ct) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var request = context.Request;
+    if (!request.HasFormContentType) return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+    var form = await request.ReadFormAsync(ct);
+    var clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"];
+    if (string.IsNullOrWhiteSpace(clientId) ||
+        !string.Equals(form["client_id"].ToString(), clientId, StringComparison.Ordinal))
+        return Results.BadRequest(new { error = "invalid_client" });
+    var grantType = form["grant_type"].ToString();
+    if (grantType is not ("authorization_code" or "refresh_token"))
+        return Results.BadRequest(new { error = "unsupported_grant_type" });
+
+    var allowedParameters = new[] { "grant_type", "client_id", "code", "redirect_uri", "code_verifier", "refresh_token" };
+    var parameters = allowedParameters.Where(form.ContainsKey)
+        .ToDictionary(key => key, key => form[key].ToString(), StringComparer.Ordinal);
+    var keycloakBaseUrl = (configuration["KeycloakAdmin:BaseUrl"] ?? "http://identity:8080").TrimEnd('/');
+    var realm = configuration["KeycloakAdmin:Realm"] ?? "leitweb";
+    try
+    {
+        using var response = await httpClientFactory.CreateClient().PostAsync(
+            $"{keycloakBaseUrl}/realms/{Uri.EscapeDataString(realm)}/protocol/openid-connect/token",
+            new FormUrlEncodedContent(parameters), ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return Results.Content(body, response.Content.Headers.ContentType?.ToString() ?? "application/json",
+            statusCode: (int)response.StatusCode);
+    }
+    catch (HttpRequestException)
+    {
+        return Results.Problem("Der Anmeldedienst ist im Docker-Netz vorübergehend nicht erreichbar.", statusCode: 503);
+    }
+});
 app.UseDefaultFiles();
 app.UseStaticFiles(new StaticFileOptions
 {

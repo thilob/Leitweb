@@ -94,12 +94,12 @@ function tokenPayload(token) {
 }
 
 async function exchangeToken(parameters) {
-  const endpoint = `${auth.config.authority}/protocol/openid-connect/token`;
+  const endpoint = auth.config.tokenEndpoint || `${auth.config.authority}/protocol/openid-connect/token`;
   let response;
   try {
     response = await fetch(endpoint, {method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(parameters)});
   } catch (cause) {
-    throw new Error('Keycloak ist vom Browser nicht erreichbar. Die Eingaben bleiben erhalten; bitte erneut versuchen.', {cause});
+    throw new Error('Anmeldedienst ist vorübergehend nicht erreichbar. Die Eingaben bleiben erhalten; bitte erneut versuchen.', {cause});
   }
   if (!response.ok) {
     const error = new Error(response.status === 400 || response.status === 401 ? 'Die Anmeldesitzung ist abgelaufen.' : 'Anmeldung bei Keycloak fehlgeschlagen.');

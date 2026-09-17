@@ -177,6 +177,8 @@ Danach zuerst `http(s)://<Leitweb-Host>/status` aufrufen. Wird Leitweb von einem
 
 Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbindung `/ws/updates` unmittelbar an alle geöffneten Leitweb-Clients übertragen. Ein vorgeschalteter Reverse Proxy muss deshalb WebSocket-Upgrades (`Upgrade`/`Connection`) an Leitweb weiterreichen. Der Browser baut eine unterbrochene Verbindung automatisch wieder auf.
 
+Die Anmeldung wird weiterhin über die öffentliche Keycloak-Adresse durchgeführt. Den Austausch des Autorisierungscodes und die spätere Token-Erneuerung leitet Leitweb dagegen über den gleich-originigen Endpunkt `/auth/token` an Keycloak im Docker-Netz weiter. Dadurch bleiben angemeldete Browser-Sitzungen funktionsfähig, auch wenn der öffentliche Keycloak-Port für browserseitige Fetch-Aufrufe eingeschränkt ist.
+
 Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. Im GIS-Branch bleiben PostgreSQL-Daten im eigenständigen Volume `leitweb-gis-postgres` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
 
 ### Benutzerverwaltung
