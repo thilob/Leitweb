@@ -26,16 +26,15 @@ Der Grundbestand kann bei Bedarf aktualisiert werden:
 
 Beim Aufbau einer leeren Datenbank wird `Data/addresses.tsv` einmalig importiert. Bestehende Datenbanken bleiben dabei unverändert; für spätere Aktualisierungen ist eine explizite Import-/Austauschmigration vorgesehen.
 
-## Compose-Dateien pro Branch
+## Compose-Dateien
 
-| Branch | Betrieb | Compose-Datei |
+| Zweck | Compose-Datei | Projekt/Volume |
 | --- | --- | --- |
-| `Dorfpolizei-Well` | lokal mit Docker oder Podman Compose | `docker-compose.yml` |
-| `Dorfpolizei-Well` | Dockhand | `docker-compose.dockhand.yml` |
-| `Dorfpolizei-Well-mit-GIS` | lokal und vom Stack ohne GIS getrennt | `compose.gis.yml` |
-| `Dorfpolizei-Well-mit-GIS` | Dockhand und vom Stack ohne GIS getrennt | `docker-compose.dockhand.yml` |
+| Lokaler Entwicklungsbetrieb mit Testauthentifizierung | `docker-compose.yml` | `dorfpolizei-well` / `dorfpolizei-well-data` |
+| Separater lokaler GIS-Stack mit Keycloak-Anmeldung | `compose.gis.yml` | `dorfpolizei-well-gis` / `dorfpolizei-well-gis-data` |
+| Dockhand-Deployment mit Keycloak-Anmeldung | `docker-compose.dockhand.yml` | `leitweb-gis` / `leitweb-gis-postgres` |
 
-Im GIS-Branch wählt `docker compose up` ohne `-f` automatisch die ebenfalls vorhandene `docker-compose.yml`. Für einen unabhängigen parallelen GIS-Betrieb ist stattdessen immer `docker compose -f compose.gis.yml up --build -d` zu verwenden. In Dockhand wird in beiden Branches `docker-compose.dockhand.yml` ausgewählt; maßgeblich ist dabei der jeweils konfigurierte Git-Branch.
+`docker compose up` ohne `-f` verwendet `docker-compose.yml`. Für den getrennten Stack muss ausdrücklich `docker compose -f compose.gis.yml up --build -d` verwendet werden. Sollen beide lokalen Stacks parallel laufen, müssen außerdem unterschiedliche Hostports gesetzt werden; die Werte aus derselben `.env` gelten für beide Dateien.
 
 ## Start
 
@@ -51,7 +50,7 @@ Unter PowerShell:
 Copy-Item .env.example .env
 ```
 
-In `.env` müssen mindestens die beiden Beispielpasswörter ersetzt werden. Bei einem anderen Rechnernamen oder einer Server-IP wird außerdem `PUBLIC_HOSTNAME` angepasst. Danach:
+Für `docker-compose.yml` müssen mindestens `POSTGRES_PASSWORD` und `KEYCLOAK_ADMIN_PASSWORD` ersetzt werden. `PUBLIC_HOSTNAME` und `QGIS_PUBLIC_URL` sind auf vom Browser erreichbare Adressen zu setzen; ohne `PUBLIC_HOSTNAME` verwendet dieser Stack `localhost`. Die produktionsnäheren Stacks benötigen zusätzlich die im jeweiligen Abschnitt genannten Keycloak-Werte. Danach:
 
 ```sh
 docker compose up --build -d
@@ -60,11 +59,14 @@ docker compose ps
 
 Danach sind erreichbar:
 
-- Anwendung: http://localhost:5000
-- Swagger im Entwicklungsbetrieb: http://localhost:5000/swagger
-- Keycloak: http://localhost:8080
+- Anwendung: http://localhost:5100
+- Swagger im Entwicklungsbetrieb: http://localhost:5100/swagger
+- Keycloak: http://localhost:8180
+- QGIS Server: http://localhost:8190/ows
 
-Der Compose-Standard ist ein einfach nutzbarer lokaler, persistenter Testbetrieb. Die Oberfläche verwendet dabei den automatisch berechtigten Testbenutzer. Keycloak und dessen Datenbank werden bereits persistent betrieben, sind aber erst nach Ergänzung eines Browser-OIDC-Logins der produktive Authentifizierungsweg. Dieser Modus darf deshalb nicht unverändert öffentlich erreichbar gemacht werden.
+Diese URLs entsprechen den Portwerten aus `.env.example`. Ohne `.env` gelten für `docker-compose.yml` stattdessen die Defaults 5000, 8080 und 8090.
+
+Der Compose-Standard ist ein einfach nutzbarer lokaler, persistenter Testbetrieb. Die Oberfläche verwendet dabei den automatisch berechtigten Testbenutzer; der implementierte Browser-OIDC-Login ist in diesem Stack deaktiviert. Keycloak und dessen Datenbank werden dennoch persistent betrieben. Dieser Modus darf deshalb nicht unverändert öffentlich erreichbar gemacht werden.
 
 ### Persistenz
 
@@ -144,6 +146,9 @@ Die Endpunkte liegen unter `/api/v1`. Autorisierung erfolgt über den mehrfach v
 
 - `incident.read`, `incident.create`, `incident.update`
 - `resource.read`, `resource.manage`
+- `case.read`, `case.manage`, `document.dispatch`
+
+Die GIS-Funktionen verwenden zusätzlich die hierarchischen Realm-Rollen `gis-sehen`, `gis-objekte-aendern` und `gis-vollzugriff`; die Benutzerverwaltung verlangt `user-admin`.
 
 Einsätze und Einsatzmittel tragen eine `organizationId`. Dieser erste Stand filtert Listen danach; eine verbindliche serverseitige Zuordnung des angemeldeten Benutzers zu Organisationen ist der nächste Sicherheitsschritt.
 
@@ -162,6 +167,7 @@ Der Stack [`docker-compose.dockhand.yml`](docker-compose.dockhand.yml) kann in D
 
 - `POSTGRES_PASSWORD`: langes, zufälliges Datenbankpasswort
 - `KEYCLOAK_ADMIN_PASSWORD`: separates, langes Keycloak-Administratorpasswort
+- `KEYCLOAK_ADMIN_CLIENT_SECRET`: Secret des Serviceclients für die Benutzerverwaltung
 - `KEYCLOAK_PUBLIC_URL`: vom Browser erreichbare Keycloak-URL, beispielsweise `https://auth.example.org`
 
 Weitere Variablen und lokale Beispielwerte stehen in [`.env.example`](.env.example). Bei Betrieb hinter einem Reverse Proxy sollten `KEYCLOAK_PUBLIC_URL` auf die externe HTTPS-Adresse und `REQUIRE_HTTPS_METADATA=true` gesetzt werden. Der GIS-Dockhand-Stack veröffentlicht Leitweb standardmäßig auf Port `5100`, Keycloak auf Port `8180` und QGIS Server auf Port `8190`; damit kollidiert er nicht mit dem Stack ohne GIS.
@@ -179,11 +185,9 @@ Status- und Einsatzänderungen werden über die authentifizierte WebSocket-Verbi
 
 Die Anmeldung wird weiterhin über die öffentliche Keycloak-Adresse durchgeführt. Den Austausch des Autorisierungscodes und die spätere Token-Erneuerung leitet Leitweb dagegen über den gleich-originigen Endpunkt `/auth/token` an Keycloak im Docker-Netz weiter. Dadurch bleiben angemeldete Browser-Sitzungen funktionsfähig, auch wenn der öffentliche Keycloak-Port für browserseitige Fetch-Aufrufe eingeschränkt ist.
 
-### Übergabestand vom 18. September 2026
+### Prüfung nach einem Deployment
 
-Der Branch `Dorfpolizei-Well-mit-GIS` enthält den aktuellen Dockhand-Stand. In der Produktivumgebung wurden PostgreSQL/PostGIS, Keycloak, Leitweb und QGIS zuletzt über die Laufzeitdiagnose als gesund geprüft. Die Benutzeranlage und GIS-Rollenzuweisung wurden über die Leitweb-API erfolgreich getestet; temporäre Prüfdaten wurden anschließend entfernt.
-
-Der derzeit noch ausstehende Schritt ist ein Dockhand-Redeployment des aktuellen Branches. Es aktiviert die Frontend-Version `v20260918-6` und den gleich-originigen Token-Endpunkt. Danach sind folgende Punkte zu prüfen:
+Der Zustand einer laufenden Dockhand-Instanz ist nicht aus dem Repository ableitbar. Nach jedem Redeployment des aktuellen Branches sind mindestens folgende Punkte zu prüfen:
 
 1. `/app-config.json` enthält `"tokenEndpoint":"/auth/token"`.
 2. Ab- und erneute Anmeldung als `dispatcher`; der Menüpunkt **Benutzerverwaltung** ist sichtbar.
@@ -191,7 +195,7 @@ Der derzeit noch ausstehende Schritt ist ein Dockhand-Redeployment des aktuellen
 4. Die Adresssuche liefert für `Well 8` unter anderem `Well 8, Wermelskirchen`, ohne das Einsatzformular zu schließen.
 5. Benutzerliste, Benutzeranlage und GIS-Rollenzuweisung funktionieren ohne HTTP 503.
 
-Der Serviceclient `leitweb-user-admin` wurde in der laufenden Produktivumgebung einmalig wiederhergestellt. Für neue Realms legt der Import ihn nun automatisch mit den Rollen `manage-users`, `view-users` und `view-realm` an. Keycloak überspringt den Realm-Import bei einer bereits vorhandenen Datenbank; ein normaler Containerneustart verändert daher bestehende Realm-Daten nicht.
+Für neue Realms legt der Import den Serviceclient `leitweb-user-admin` automatisch mit den Rollen `manage-users`, `view-users` und `view-realm` an. Keycloak überspringt den Realm-Import bei einer bereits vorhandenen Datenbank; ein normaler Containerneustart verändert daher bestehende Realm-Daten nicht.
 
 Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. Im GIS-Branch bleiben PostgreSQL-Daten im eigenständigen Volume `leitweb-gis-postgres` erhalten. Beim ersten Start importiert Keycloak den Realm `leitweb`; der Beispielbenutzer lautet `dispatcher` mit dem temporären Passwort `change-me` und muss dieses beim ersten Login ändern. Alle mitgelieferten Zugangsdaten sind ausschließlich für die Ersteinrichtung bestimmt.
 
@@ -232,6 +236,8 @@ docker compose -f compose.gis.yml ps
 ```
 
 Mit den Werten aus `.env.example` sind anschließend Leitweb unter `http://localhost:5100`, Keycloak unter `http://localhost:8180` und QGIS Server unter `http://localhost:8190/ows` erreichbar. Für einen entfernten Host müssen `KEYCLOAK_PUBLIC_URL` sowie gegebenenfalls die veröffentlichten Ports vor dem ersten Realm-Import korrekt gesetzt sein.
+
+Bekannte Abweichung: `compose.gis.yml` reicht `KEYCLOAK_ADMIN_CLIENT_SECRET` derzeit nicht an den Keycloak-Container weiter. Der Keycloak-Login ist davon unabhängig; die automatische Einrichtung des Serviceclients für die Benutzerverwaltung ist mit dieser Compose-Datei jedoch erst nach entsprechender Konfigurationskorrektur verlässlich. `docker-compose.dockhand.yml` reicht das Secret bereits an Keycloak weiter.
 
 QGIS-Projekte liegen unter `deploy/qgis-server/projects` und werden schreibgeschützt nach `/projects` in den Server eingebunden. Das veröffentlichte Standardprojekt ist `start.qgz`; es stellt den Orthophoto-Layer `DOP` als WMS bereit. Eigene, zuvor mit QGIS Desktop geprüfte Projekte können dort versioniert abgelegt werden. Die Auswahl erfolgt über die Compose-/`.env`-Variable `QGIS_PROJECT_FILE`, beispielsweise `QGIS_PROJECT_FILE=/projects/meine-lage.qgz`. Ohne Angabe wird `/projects/start.qgz` verwendet. Das Nginx-Gateway übernimmt keinen festen Projektpfad, sodass die Container-Variable maßgeblich bleibt. `QGIS_PUBLIC_URL` bezeichnet den vom Browser erreichbaren OWS-Endpunkt. Leitweb liest die WMS-Capabilities des jeweils aktiven Projekts automatisch ein und bietet alle darin benannten Layer einzeln in der GIS-Lage zum Ein- und Ausblenden an. Datenbankzustand, Projekte und Containerkonfiguration sind getrennt, sodass dieselben Artefakte später in PersistentVolume, ConfigMap und Deployments eines Kubernetes-Stacks überführt werden können.
 

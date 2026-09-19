@@ -1,5 +1,7 @@
 # Übergabe-Prompt für eine neue Codex-Instanz
 
+Stand der Dokumentation: 19.09.2026. Die datierten Abschnitte weiter unten sind ein Änderungsprotokoll; bei Widersprüchen gelten dieser aktuelle Überblick, `README.md`, Projektdateien und Code.
+
 Du arbeitest im privaten GitHub-Projekt `thilob/Leitweb` auf dem Branch `Dorfpolizei-Well-mit-GIS`. Bitte lies zuerst `ANFORDERUNGEN.md`, `README.md` und den aktuellen Git-Status. Bewahre vorhandene Änderungen und arbeite auf diesem Branch weiter, sofern der Benutzer nichts anderes verlangt.
 
 ## Ziel des Projekts
@@ -25,11 +27,11 @@ Wir entwickeln den technischen Prototyp „Dorfpolizei Well“: eine containeris
 
 ## Architektur
 
-- ASP.NET Core 6 Web API als modularer Monolith
+- ASP.NET Core 10 Web API als modularer Monolith
 - Entity Framework Core mit PostgreSQL
 - Statisches Frontend in `src/Leitweb.Api/wwwroot`
 - Keycloak ist als Identitätsdienst vorbereitet
-- Docker Compose startet API, PostgreSQL und Keycloak
+- Docker Compose startet API, PostgreSQL/PostGIS, Keycloak, QGIS Server und das Nginx-OWS-Gateway
 - Anwendungs- und Keycloak-Daten liegen in getrennten PostgreSQL-Datenbanken, aber im gemeinsamen benannten Volume `dorfpolizei-well-data`
 - PostgreSQL-Schemaänderungen laufen über versionierte EF-Core-Migrationen
 - Der lokale Start ohne Docker verwendet eine flüchtige In-Memory-Datenbank
@@ -68,30 +70,26 @@ Lokale Vorschau ohne Docker:
 dotnet run --project src/Leitweb.Api/Leitweb.Api.csproj --urls http://localhost:5000
 ```
 
-Die Anwendung ist dann unter `http://localhost:5000` erreichbar.
+Beim Start ohne Docker ist die Anwendung dann unter `http://localhost:5000` erreichbar. Beim Compose-Start bestimmen `LEITWEB_PORT`, `KEYCLOAK_PORT` und `QGIS_PORT` aus `.env` die veröffentlichten Ports; `.env.example` verwendet 5100, 8180 und 8190.
 
 ## Wichtige Einschränkungen
 
-- Docker war auf dem bisherigen Entwicklungsrechner nicht installiert. Build, Migrationsskript und YAML-Syntax wurden geprüft, aber der vollständige Compose-Containerlauf muss auf einem Docker-/Podman-Rechner noch als Smoke-Test ausgeführt werden.
-- Compose verwendet aktuell bewusst die Development-Testauthentifizierung, damit die Oberfläche sofort benutzbar ist. Keycloak und seine Datenbank sind persistent vorbereitet, aber ein echter Browser-OIDC-/PKCE-Login fehlt noch. Der Compose-Standard darf deshalb nicht öffentlich exponiert werden.
-- .NET 6 ist nicht mehr im Support. Eine Aktualisierung auf eine unterstützte LTS-Version ist erforderlich.
+- Der lokale Standardstack verwendet bewusst Development-Testauthentifizierung und darf deshalb nicht öffentlich exponiert werden. Die beiden anderen Compose-Dateien verwenden den implementierten Keycloak-Login mit Authorization Code Flow und PKCE.
 - Der Prototyp ist nicht für reale Polizeidaten freigegeben. Vorher fehlen unter anderem Datenschutz-Folgenabschätzung, Löschkonzept, revisionssicheres Audit, sichere Geheimnisverwaltung, TLS, Mandantenzuordnung, Aktenexport und weitere fachrechtliche Prüfungen.
 - Bei einer alten Docker-Datenbank, die noch vor Einführung der EF-Migrationen mit `EnsureCreated` aufgebaut wurde, sollte zuerst ein Backup angelegt und anschließend ein frisches Volume verwendet werden.
 
 ## Sinnvolle nächste Schritte
 
-1. Compose auf einem Docker-/Podman-System vollständig starten und API, PostgreSQL, Keycloak, Neustartpersistenz und Backup/Restore testen.
-2. Auf eine unterstützte .NET-LTS-Version migrieren.
-3. Keycloak-Login im Browser mit Authorization Code Flow und PKCE integrieren und die Testauthentifizierung im Compose-Betrieb deaktivieren.
-4. Organisationszuordnung serverseitig aus dem Benutzer-Token erzwingen.
-5. Audit-Log, Bearbeitungshistorien und Lösch-/Aufbewahrungsregeln ergänzen.
-6. Automatisierte API-, UI- und Container-Integrationstests einführen.
+1. Organisationszuordnung serverseitig aus dem Benutzer-Token erzwingen.
+2. Audit-Log, Bearbeitungshistorien und Lösch-/Aufbewahrungsregeln ergänzen.
+3. Automatisierte API-, UI- und Container-Integrationstests einführen.
+4. OpenLayers lokal ausliefern und eine Content-Security-Policy ergänzen.
 
 Arbeite autonom weiter, aber behandle Datenschutz, Zugriffsrechte, Datenlöschung und öffentlich erreichbare Konfigurationen als sicherheitskritisch. Nach Änderungen Build und passende Kernabläufe prüfen sowie den Branch nur auf ausdrücklichen Wunsch committen oder pushen.
 
 ## Fortführung: GIS-Stand und lauffähiger Compose-Betrieb (30.08.2026)
 
-Die vorstehenden Angaben dokumentieren den ursprünglichen Stand und sind in mehreren Punkten überholt. Weitergearbeitet wird aktuell auf dem Branch `Dorfpolizei-Well-mit-GIS`.
+Der folgende datierte Abschnitt hält die damalige Umsetzung fest.
 
 ### Inzwischen umgesetzt
 
@@ -246,7 +244,7 @@ git pull
 docker compose -f compose.gis.yml up --build -d
 ```
 
-Anschließend `/status` aufrufen. Bei Zugriff von einem anderen Rechner dürfen öffentliche Adressen nicht `localhost` verwenden. Die lokale `.env` des Entwicklungsstands enthält derzeit `KEYCLOAK_PUBLIC_URL=http://localhost:8082` und ist nur für Zugriff auf demselben Rechner geeignet; produktive Dockhand-Werte werden außerhalb von Git verwaltet.
+Anschließend `/status` aufrufen. Bei Zugriff von einem anderen Rechner dürfen öffentliche Adressen nicht `localhost` verwenden. Lokale `.env`-Dateien sind nicht Teil der versionierten Dokumentation; produktive Dockhand-Werte werden außerhalb von Git verwaltet.
 
 ### Dateien dieses Änderungspakets
 
