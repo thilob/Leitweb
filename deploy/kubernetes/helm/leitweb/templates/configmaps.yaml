@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "leitweb.fullname" . }}-postgres-init
+  labels:
+    {{- include "leitweb.labels" . | nindent 4 }}
+data:
+  01-create-keycloak.sh: |
+    #!/bin/sh
+    set -eu
+    psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1 <<'SQL'
+    SELECT 'CREATE DATABASE keycloak OWNER leitweb'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'keycloak')\gexec
+    SQL
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "leitweb.fullname" . }}-keycloak-realm
+  labels:
+    {{- include "leitweb.labels" . | nindent 4 }}
+data:
+  leitweb-realm.json: |
+{{ .Files.Get "files/leitweb-realm.json" | replace "__LEITWEB_PUBLIC_URL__" .Values.publicUrls.leitweb | indent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "leitweb.fullname" . }}-qgis-nginx
+  labels:
+    {{- include "leitweb.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      location = /health { access_log off; return 200 "healthy\n"; }
+      location = / { default_type text/plain; return 200 "QGIS gateway ready\n"; }
+      location = /favicon.ico { access_log off; return 204; }
+      location /ows {
+        add_header Access-Control-Allow-Origin "*" always;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /usr/lib/cgi-bin/qgis_mapserv.fcgi;
+        fastcgi_param QGIS_SERVER_SERVICE_URL $scheme://$http_host/ows;
+        fastcgi_pass {{ include "leitweb.fullname" . }}-qgis-server:5555;
+        fastcgi_read_timeout 120s;
+        gzip off;
+      }
+    }

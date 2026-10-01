@@ -51,6 +51,11 @@ Unter PowerShell:
 Copy-Item .env.example .env
 ```
 
+Für Kubernetes und Rancher stehen sowohl ein Helm-Chart als auch direkt
+anwendbare YAML-Manifeste zur Verfügung. Die vollständige Installations-,
+Upgrade-, Rollback- und Backup-Anleitung befindet sich unter
+[`deploy/kubernetes/README.md`](deploy/kubernetes/README.md).
+
 In `.env` müssen mindestens die beiden Beispielpasswörter ersetzt werden. Bei einem anderen Rechnernamen oder einer Server-IP wird außerdem `PUBLIC_HOSTNAME` angepasst. Danach:
 
 ```sh

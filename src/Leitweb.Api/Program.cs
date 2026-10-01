@@ -3,6 +3,7 @@ using Leitweb.Api.Diagnostics;
 using Leitweb.Api.Realtime;
 using Leitweb.Api.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +14,14 @@ builder.Services.AddHttpClient<KeycloakUserService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<RuntimeStatusService>();
 builder.Services.AddSingleton<LiveUpdateHub>();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // The application is only exposed through the Kubernetes Service. Trust the
+    // ingress controller's forwarded headers, independent of its pod network.
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 var useInMemoryDatabase = builder.Configuration.GetValue<bool>("Development:UseInMemoryDatabase");
 builder.Services.AddDbContext<LeitwebDbContext>(options =>
 {
@@ -68,14 +77,41 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
-using (var scope = app.Services.CreateScope())
+var migrateOnly = args.Contains("--migrate-only", StringComparer.OrdinalIgnoreCase);
+var migrateOnStartup = builder.Configuration.GetValue("Database:MigrateOnStartup", true);
+if (migrateOnly || migrateOnStartup)
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<LeitwebDbContext>();
-    if (useInMemoryDatabase) await db.Database.EnsureCreatedAsync();
-    else await db.Database.MigrateAsync();
-    if (builder.Configuration.GetValue("InitialData:Seed", useInMemoryDatabase)) await DevelopmentData.SeedAsync(db);
-    await AddressSeedImporter.ImportIfEmptyAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "addresses.tsv"));
+    if (useInMemoryDatabase)
+    {
+        await db.Database.EnsureCreatedAsync();
+        if (builder.Configuration.GetValue("InitialData:Seed", true)) await DevelopmentData.SeedAsync(db);
+        await AddressSeedImporter.ImportIfEmptyAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "addresses.tsv"));
+    }
+    else
+    {
+        // A session-level advisory lock serializes Kubernetes init containers
+        // during rolling updates and prevents concurrent EF migrations/seeding.
+        const long migrationLockId = 4_836_974_842_019_311_219;
+        await db.Database.OpenConnectionAsync();
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_lock({0})", migrationLockId);
+            await db.Database.MigrateAsync();
+            if (builder.Configuration.GetValue("InitialData:Seed", false)) await DevelopmentData.SeedAsync(db);
+            await AddressSeedImporter.ImportIfEmptyAsync(db, Path.Combine(app.Environment.ContentRootPath, "Data", "addresses.tsv"));
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_unlock({0})", migrationLockId);
+            await db.Database.CloseConnectionAsync();
+        }
+    }
 }
+if (migrateOnly) return;
+
+app.UseForwardedHeaders();
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 app.Use(async (context, next) =>
 {

@@ -1,0 +1,322 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: leitweb-postgres-init, namespace: leitweb }
+data:
+  01-create-keycloak.sh: |
+    #!/bin/sh
+    set -eu
+    psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=1 <<'SQL'
+    SELECT 'CREATE DATABASE keycloak OWNER leitweb'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'keycloak')\gexec
+    SQL
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: leitweb-qgis-nginx, namespace: leitweb }
+data:
+  default.conf: |
+    server {
+      listen 8080;
+      server_name _;
+      location = /health { access_log off; return 200 "healthy\n"; }
+      location = / { default_type text/plain; return 200 "QGIS gateway ready\n"; }
+      location = /favicon.ico { access_log off; return 204; }
+      location /ows {
+        add_header Access-Control-Allow-Origin "*" always;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME /usr/lib/cgi-bin/qgis_mapserv.fcgi;
+        fastcgi_param QGIS_SERVER_SERVICE_URL $scheme://$http_host/ows;
+        fastcgi_pass leitweb-qgis-server:5555;
+        fastcgi_read_timeout 120s;
+        gzip off;
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: leitweb-postgres
+  namespace: leitweb
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 20Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: leitweb-postgres, namespace: leitweb }
+spec:
+  selector: { app: leitweb-postgres }
+  ports: [{ name: postgres, port: 5432, targetPort: postgres }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: leitweb-postgres, namespace: leitweb }
+spec:
+  serviceName: leitweb-postgres
+  replicas: 1
+  selector: { matchLabels: { app: leitweb-postgres } }
+  template:
+    metadata: { labels: { app: leitweb-postgres } }
+    spec:
+      securityContext: { fsGroup: 999 }
+      containers:
+        - name: postgres
+          image: postgis/postgis:16-3.5-alpine
+          ports: [{ name: postgres, containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: leitweb }
+            - { name: POSTGRES_USER, value: leitweb }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: postgres-password } }
+          readinessProbe:
+            exec: { command: [sh, -c, "pg_isready -U leitweb -d leitweb"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: [sh, -c, "pg_isready -U leitweb -d leitweb"] }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 2Gi }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d/01-create-keycloak.sh, subPath: 01-create-keycloak.sh, readOnly: true }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: leitweb-postgres }
+        - name: init
+          configMap: { name: leitweb-postgres-init, defaultMode: 365 }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: leitweb-keycloak, namespace: leitweb }
+spec:
+  selector: { app: leitweb-keycloak }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: leitweb-keycloak, namespace: leitweb }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: leitweb-keycloak } }
+  template:
+    metadata: { labels: { app: leitweb-keycloak } }
+    spec:
+      securityContext: { fsGroup: 1000 }
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.7.3
+          args: [start, --import-realm]
+          ports:
+            - { name: http, containerPort: 8080 }
+            - { name: management, containerPort: 9000 }
+          env:
+            - { name: KC_DB, value: postgres }
+            - { name: KC_DB_URL, value: "jdbc:postgresql://leitweb-postgres:5432/keycloak" }
+            - { name: KC_DB_USERNAME, value: leitweb }
+            - name: KC_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: postgres-password } }
+            - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin }
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: keycloak-admin-password } }
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: keycloak-client-secret } }
+            - { name: KC_HTTP_ENABLED, value: "true" }
+            - { name: KC_HEALTH_ENABLED, value: "true" }
+            - { name: KC_HOSTNAME, value: "https://auth.example.org" }
+            - { name: KC_PROXY_HEADERS, value: xforwarded }
+          startupProbe:
+            httpGet: { path: /health/started, port: management }
+            failureThreshold: 60
+            periodSeconds: 5
+          readinessProbe: { httpGet: { path: /health/ready, port: management }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /health/live, port: management }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+          volumeMounts:
+            - { name: realm, mountPath: /opt/keycloak/data/import/leitweb-realm.json, subPath: leitweb-realm.json, readOnly: true }
+      volumes:
+        - name: realm
+          configMap: { name: leitweb-keycloak-realm }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: leitweb-api, namespace: leitweb }
+spec:
+  selector: { app: leitweb-api }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: leitweb-api, namespace: leitweb }
+spec:
+  # Do not increase before LiveUpdateHub uses a distributed backplane.
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector: { matchLabels: { app: leitweb-api } }
+  template:
+    metadata: { labels: { app: leitweb-api } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      initContainers:
+        - name: migrate-database
+          image: ghcr.io/thilob/leitweb-api:kubernetes
+          imagePullPolicy: Always
+          args: [--migrate-only]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: postgres-password } }
+            - { name: ASPNETCORE_ENVIRONMENT, value: Production }
+            - { name: Database__MigrateOnStartup, value: "false" }
+            - { name: InitialData__Seed, value: "false" }
+            - { name: ConnectionStrings__Database, value: "Host=leitweb-postgres;Port=5432;Database=leitweb;Username=leitweb;Password=$(POSTGRES_PASSWORD);Search Path=public" }
+      containers:
+        - name: api
+          image: ghcr.io/thilob/leitweb-api:kubernetes
+          imagePullPolicy: Always
+          ports: [{ name: http, containerPort: 8080 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: postgres-password } }
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: keycloak-client-secret } }
+            - { name: ASPNETCORE_URLS, value: "http://+:8080" }
+            - { name: ASPNETCORE_ENVIRONMENT, value: Production }
+            - { name: Database__MigrateOnStartup, value: "false" }
+            - { name: InitialData__Seed, value: "false" }
+            - { name: ConnectionStrings__Database, value: "Host=leitweb-postgres;Port=5432;Database=leitweb;Username=leitweb;Password=$(POSTGRES_PASSWORD);Search Path=public" }
+            - { name: Authentication__Authority, value: "https://auth.example.org/realms/leitweb" }
+            - { name: Authentication__PublicAuthority, value: "https://auth.example.org/realms/leitweb" }
+            - { name: Authentication__MetadataAddress, value: "http://leitweb-keycloak:8080/realms/leitweb/.well-known/openid-configuration" }
+            - { name: Authentication__Audience, value: leitweb-api }
+            - { name: Authentication__ClientId, value: leitweb-api }
+            - { name: Authentication__RequireHttpsMetadata, value: "true" }
+            - { name: KeycloakAdmin__BaseUrl, value: "http://leitweb-keycloak:8080" }
+            - { name: KeycloakAdmin__Realm, value: leitweb }
+            - { name: KeycloakAdmin__ClientId, value: leitweb-user-admin }
+            - { name: KeycloakAdmin__ClientSecret, value: $(KEYCLOAK_ADMIN_CLIENT_SECRET) }
+            - { name: Gis__QgisServerUrl, value: "http://leitweb-qgis-web:8080/ows" }
+            - { name: Gis__QgisPublicUrl, value: "https://qgis.example.org/ows" }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe: { httpGet: { path: /health/ready, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /health/live, port: http }, periodSeconds: 15 }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: leitweb-qgis-server, namespace: leitweb }
+spec:
+  selector: { app: leitweb-qgis-server }
+  ports: [{ name: fastcgi, port: 5555, targetPort: fastcgi }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: leitweb-qgis-server, namespace: leitweb }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: leitweb-qgis-server } }
+  template:
+    metadata: { labels: { app: leitweb-qgis-server } }
+    spec:
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: qgis-server
+          image: ghcr.io/thilob/leitweb-qgis:kubernetes
+          imagePullPolicy: Always
+          ports: [{ name: fastcgi, containerPort: 5555 }]
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          env:
+            - { name: PGHOST, value: leitweb-postgres }
+            - { name: PGDATABASE, value: leitweb }
+            - { name: PGUSER, value: leitweb }
+            - name: PGPASSWORD
+              valueFrom: { secretKeyRef: { name: leitweb-secrets, key: postgres-password } }
+            - { name: PGSSLMODE, value: prefer }
+            - { name: QGIS_PROJECT_FILE, value: /projects/start.qgz }
+            - { name: QGIS_SERVER_LOG_LEVEL, value: "1" }
+          readinessProbe:
+            tcpSocket: { port: fastcgi }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: fastcgi }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: leitweb-qgis-web, namespace: leitweb }
+spec:
+  selector: { app: leitweb-qgis-web }
+  ports: [{ name: http, port: 8080, targetPort: http }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: leitweb-qgis-web, namespace: leitweb }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: leitweb-qgis-web } }
+  template:
+    metadata: { labels: { app: leitweb-qgis-web } }
+    spec:
+      securityContext: { seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: nginx
+          image: nginx:1.30-alpine
+          ports: [{ name: http, containerPort: 8080 }]
+          readinessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 15 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/nginx/conf.d/default.conf, subPath: default.conf, readOnly: true }
+      volumes:
+        - name: config
+          configMap: { name: leitweb-qgis-nginx }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: leitweb
+  namespace: leitweb
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - secretName: leitweb-tls
+      hosts: [leitweb.example.org, auth.example.org, qgis.example.org]
+  rules:
+    - host: leitweb.example.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: leitweb-api, port: { name: http } } }
+    - host: auth.example.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: leitweb-keycloak, port: { name: http } } }
+    - host: qgis.example.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: leitweb-qgis-web, port: { name: http } } }

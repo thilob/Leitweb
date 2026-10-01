@@ -13,6 +13,7 @@ RUN apt-get update \
     && useradd --system --uid 10002 --create-home qgis
 
 COPY start-qgis-server.sh /usr/local/bin/start-qgis-server
+COPY --chown=qgis:qgis projects /projects
 RUN chmod 0755 /usr/local/bin/start-qgis-server
 USER qgis
 WORKDIR /home/qgis

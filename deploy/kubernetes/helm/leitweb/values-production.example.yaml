@@ -1,0 +1,32 @@
+# Copy to a file outside Git or rename locally and adapt all values.
+images:
+  api:
+    repository: registry.example.org/leitweb/leitweb-api
+    tag: "2026.10.1"
+    pullPolicy: IfNotPresent
+  qgis:
+    repository: registry.example.org/leitweb/leitweb-qgis
+    tag: "2026.10.1"
+    pullPolicy: IfNotPresent
+
+existingSecret: leitweb-secrets
+
+publicUrls:
+  leitweb: https://leitweb.example.org
+  keycloak: https://auth.example.org
+  qgis: https://qgis.example.org/ows
+
+postgres:
+  storageClassName: longhorn
+  storageSize: 50Gi
+
+ingress:
+  className: nginx
+  tls:
+    enabled: true
+    secretName: leitweb-tls
+  hosts:
+    leitweb: leitweb.example.org
+    keycloak: auth.example.org
+    qgis: qgis.example.org
+

@@ -1,0 +1,16 @@
+Leitweb was installed in namespace {{ .Release.Namespace }}.
+
+1. Wait for the rollout:
+   kubectl -n {{ .Release.Namespace }} get pods -w
+
+2. Check the API:
+   {{ .Values.publicUrls.leitweb }}/status
+
+3. Sign in as dispatcher with the temporary password "change-me" and change it immediately.
+
+The PostgreSQL PVC is marked "helm.sh/resource-policy: keep". It deliberately
+survives `helm uninstall`; remove it manually only when all data may be deleted.
+
+Do not increase api.replicas above 1 until LiveUpdateHub has a distributed
+backplane. The chart rejects such a configuration to prevent lost live updates.
+

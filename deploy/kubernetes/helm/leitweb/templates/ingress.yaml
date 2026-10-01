@@ -1,0 +1,47 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "leitweb.fullname" . }}
+  labels:
+    {{- include "leitweb.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - secretName: {{ .Values.ingress.tls.secretName }}
+      hosts:
+        - {{ .Values.ingress.hosts.leitweb }}
+        - {{ .Values.ingress.hosts.keycloak }}
+        - {{ .Values.ingress.hosts.qgis }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.hosts.leitweb }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "leitweb.fullname" . }}-api, port: { name: http } }
+    - host: {{ .Values.ingress.hosts.keycloak }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "leitweb.fullname" . }}-keycloak, port: { name: http } }
+    - host: {{ .Values.ingress.hosts.qgis }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: {{ include "leitweb.fullname" . }}-qgis-web, port: { name: http } }
+{{- end }}
+

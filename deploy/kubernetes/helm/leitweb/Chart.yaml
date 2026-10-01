@@ -1,0 +1,8 @@
+apiVersion: v2
+name: leitweb
+description: Leitweb including PostgreSQL/PostGIS, Keycloak and QGIS Server
+type: application
+version: 0.1.0
+appVersion: "2026.10"
+kubeVersion: ">=1.28.0-0"
+
