@@ -162,7 +162,7 @@ Image lädt. Für Produktion muss in `values-production.yaml` ein unveränderlic
 Release- oder SHA-Tag eingetragen werden.
 
 Die Produktionsvorlage ist auf den erfolgreich gebauten Stand
-`sha-f8fa102` festgelegt. Beide GHCR-Pakete sind öffentlich und können von K3s
+`sha-d874c8e` festgelegt. Beide GHCR-Pakete sind öffentlich und können von K3s
 ohne Registry-Secret geladen werden. Bei einem späteren Release wird der Tag in
 der lokalen `values-production.yaml` auf den nach erfolgreicher CI erzeugten
 `sha-<commit>`-Tag aktualisiert.

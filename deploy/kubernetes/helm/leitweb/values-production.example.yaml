@@ -2,11 +2,11 @@
 images:
   api:
     repository: ghcr.io/thilob/leitweb-api
-    tag: "sha-f8fa102"
+    tag: "sha-d874c8e"
     pullPolicy: IfNotPresent
   qgis:
     repository: ghcr.io/thilob/leitweb-qgis
-    tag: "sha-f8fa102"
+    tag: "sha-d874c8e"
     pullPolicy: IfNotPresent
 
 existingSecret: leitweb-secrets
