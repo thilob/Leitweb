@@ -2,7 +2,9 @@ apiVersion: v2
 name: leitweb
 description: Leitweb including PostgreSQL/PostGIS, Keycloak and QGIS Server
 type: application
-version: 0.1.0
-appVersion: "2026.10"
-kubeVersion: ">=1.28.0-0"
+version: 0.2.0
+appVersion: "2026.11"
+# Kubernetes only supports the three newest minor releases. Keep this range in
+# sync with the supported versions documented in deploy/kubernetes/README.md.
+kubeVersion: ">=1.35.0-0 <1.38.0-0"
 

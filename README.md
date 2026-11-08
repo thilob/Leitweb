@@ -51,10 +51,14 @@ Unter PowerShell:
 Copy-Item .env.example .env
 ```
 
-Für Kubernetes und Rancher stehen sowohl ein Helm-Chart als auch direkt
-anwendbare YAML-Manifeste zur Verfügung. Die vollständige Installations-,
-Upgrade-, Rollback- und Backup-Anleitung befindet sich unter
-[`deploy/kubernetes/README.md`](deploy/kubernetes/README.md).
+Für den vorhandenen, von Rancher verwalteten K3s-Cluster mit Traefik stehen
+sowohl ein Helm-Chart als auch direkt anwendbare YAML-Manifeste zur Verfügung.
+Neue Installationen verwenden PostgreSQL 18 mit PostGIS 3.7; bestehende ältere
+PVCs benötigen dafür eine Dump/Restore-Migration. GitHub Actions bauen API und
+QGIS als GHCR-Images mit `latest`, Commit- und Release-Tags. Für Produktion sind
+unveränderliche Release- oder Commit-Tags vorgesehen. Die vollständige
+Installations-, Upgrade-, Rollback-, Backup- und Versionsanleitung befindet sich
+unter [`deploy/kubernetes/README.md`](deploy/kubernetes/README.md).
 
 In `.env` müssen mindestens die beiden Beispielpasswörter ersetzt werden. Bei einem anderen Rechnernamen oder einer Server-IP wird außerdem `PUBLIC_HOSTNAME` angepasst. Danach:
 

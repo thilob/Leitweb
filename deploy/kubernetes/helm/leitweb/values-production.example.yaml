@@ -2,11 +2,11 @@
 images:
   api:
     repository: registry.example.org/leitweb/leitweb-api
-    tag: "2026.10.1"
+    tag: "2026.11.0"
     pullPolicy: IfNotPresent
   qgis:
     repository: registry.example.org/leitweb/leitweb-qgis
-    tag: "2026.10.1"
+    tag: "2026.11.0"
     pullPolicy: IfNotPresent
 
 existingSecret: leitweb-secrets
@@ -17,11 +17,19 @@ publicUrls:
   qgis: https://qgis.example.org/ows
 
 postgres:
-  storageClassName: longhorn
+  # Empty means: use the cluster's default StorageClass. K3s normally provides
+  # local-path; set longhorn explicitly only when it is installed and desired.
+  storageClassName: ""
   storageSize: 50Gi
 
 ingress:
-  className: nginx
+  # Use the IngressClass installed in the target cluster.
+  className: traefik
+  # If Rancher's cert-manager already has a suitable ClusterIssuer, it can
+  # create the TLS secret named below. Replace the issuer name as required.
+  annotations: {}
+  # annotations:
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
   tls:
     enabled: true
     secretName: leitweb-tls

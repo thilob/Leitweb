@@ -61,7 +61,8 @@ spec:
           resources:
             {{- toYaml .Values.postgres.resources | nindent 12 }}
           volumeMounts:
-            - { name: data, mountPath: /var/lib/postgresql/data }
+            # PostgreSQL 18+ stores its versioned PGDATA below this mount.
+            - { name: data, mountPath: /var/lib/postgresql }
             - { name: init, mountPath: /docker-entrypoint-initdb.d/01-create-keycloak.sh, subPath: 01-create-keycloak.sh, readOnly: true }
       volumes:
         - name: data

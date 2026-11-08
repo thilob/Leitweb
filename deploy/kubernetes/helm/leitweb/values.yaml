@@ -2,11 +2,11 @@ nameOverride: ""
 fullnameOverride: ""
 
 images:
-  api: { repository: ghcr.io/thilob/leitweb-api, tag: kubernetes, pullPolicy: Always }
-  qgis: { repository: ghcr.io/thilob/leitweb-qgis, tag: kubernetes, pullPolicy: Always }
-  postgres: { repository: postgis/postgis, tag: 16-3.5-alpine, pullPolicy: IfNotPresent }
-  keycloak: { repository: quay.io/keycloak/keycloak, tag: 26.7.3, pullPolicy: IfNotPresent }
-  nginx: { repository: nginx, tag: 1.30-alpine, pullPolicy: IfNotPresent }
+  api: { repository: ghcr.io/thilob/leitweb-api, tag: latest, pullPolicy: Always }
+  qgis: { repository: ghcr.io/thilob/leitweb-qgis, tag: latest, pullPolicy: Always }
+  postgres: { repository: postgis/postgis, tag: 18-3.7-alpine, pullPolicy: IfNotPresent }
+  keycloak: { repository: quay.io/keycloak/keycloak, tag: 26.8.2, pullPolicy: IfNotPresent }
+  nginx: { repository: nginx, tag: 1.30.6-alpine, pullPolicy: IfNotPresent }
 
 # Create this secret before the Helm installation; see README.md.
 existingSecret: leitweb-secrets
@@ -51,7 +51,8 @@ qgis:
 
 ingress:
   enabled: true
-  className: nginx
+  # Traefik is the default in K3s and in new RKE2 clusters from v1.36 onward.
+  className: traefik
   annotations: {}
   tls: { enabled: true, secretName: leitweb-tls }
   hosts:

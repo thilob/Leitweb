@@ -38,14 +38,104 @@ kein Helm-Prozess im Cluster.
   Datenbankschema nicht zurück; vor produktiven Upgrades ist deshalb ein Backup
   erforderlich.
 
-## 1. Voraussetzungen
+## 1. Voraussetzungen und unterstützte Versionen
 
-- Kubernetes ab Version 1.28 oder ein entsprechender RKE2/K3s/Rancher-Cluster
+Stand 8. November 2026 werden die drei von Kubernetes gepflegten Minor-Versionen
+1.35, 1.36 und 1.37 unterstützt. Dieses Chart akzeptiert deshalb Kubernetes
+`>=1.35.0` und `<1.38.0`; die CI rendert es gegen den aktuellen Patchstand 1.37.2.
+Beim Aufbau eines neuen Clusters sollte immer der neueste Patchstand der
+gewählten, noch unterstützten Minor-Version verwendet werden.
+
+Die mitgelieferten Infrastruktur-Images sind PostgreSQL 18 mit PostGIS 3.7,
+Keycloak 26.8.2 und Nginx Stable 1.30.6. Das PostgreSQL-Tag folgt den aktuellen
+18.x-Patches. Die API verwendet .NET 10.0.14 LTS, EF Core 10.0.14,
+Npgsql 10.0.3 und Swashbuckle 10.3.1. QGIS wird aus dem offiziellen
+LTR-Repository gebaut, aktuell
+3.44 LTR. Vorab- und RC-Versionen wie .NET/Npgsql 11 werden nicht eingesetzt.
+
+- Kubernetes 1.35 bis 1.37 oder ein entsprechender RKE2/K3s/Rancher-Cluster
+- Helm 4 für den empfohlenen Installationsweg (Helm 3 wird nur noch bis
+  10. Februar 2027 mit Sicherheitsupdates versorgt)
 - eine Standard-StorageClass oder eine explizite StorageClass wie Longhorn
-- ein Ingress-Controller, üblicherweise `ingress-nginx`
+- ein gepflegter Ingress-Controller; die Beispiele verwenden `traefik`
 - DNS-Namen für Leitweb, Keycloak und QGIS
 - ein TLS-Zertifikat, das alle drei Namen abdeckt
 - eine vom Cluster erreichbare Container-Registry
+
+`ingress-nginx` darf für neue Installationen nicht mehr verwendet werden: Das
+Projekt wurde im März 2026 eingestellt und erhält keine Sicherheitsupdates.
+K3s bringt Traefik standardmäßig mit; neue RKE2-Cluster verwenden ab RKE2 1.36
+ebenfalls Traefik. Bei einem anderen Controller muss `ingress.className` auf
+eine Ausgabe von `kubectl get ingressclass` gesetzt werden. Die beiden früheren
+NGINX-spezifischen Timeout-Annotationen sind nicht nötig: WebSockets funktionieren
+mit Traefik ohne diese Annotationen.
+
+### Schnellstart: lauffähiger Einzelknoten mit K3s
+
+Dieser Abschnitt ist nur für einen neuen Server gedacht. Bei einem bereits über
+Rancher verwalteten K3s-Cluster wird K3s **nicht erneut installiert**; stattdessen
+direkt mit dem folgenden Abschnitt fortfahren.
+
+Für Entwicklung, Abnahme oder eine kleine Einzelknoteninstallation stellt K3s
+Storage, Traefik und Kubernetes in einem Schritt bereit. Auf einem frischen
+Linux-Server mit freien Ports 80 und 443:
+
+```sh
+# renovate: k3s
+K3S_VERSION='v1.37.2+k3s1'
+curl -sfL https://get.k3s.io | \
+  INSTALL_K3S_VERSION="$K3S_VERSION" sh -
+sudo k3s kubectl get nodes
+sudo k3s kubectl get storageclass
+sudo k3s kubectl get ingressclass
+```
+
+Danach entweder alle folgenden `kubectl`-Aufrufe als `sudo k3s kubectl`
+ausführen oder die Kubeconfig für den normalen Benutzer einrichten. Vor dem
+Öffnen ins Internet müssen Firewall, DNS, Backup und TLS eingerichtet sein.
+Für hochverfügbare Produktion werden mindestens drei Serverknoten, ein externer
+Load-Balancer und die dokumentierte HA-Konfiguration von K3s oder RKE2 benötigt;
+ein Einzelknoten ist nicht hochverfügbar.
+
+### Vorhandener K3s-Cluster mit Traefik und Rancher
+
+Die mitgelieferten Werte passen zu dieser Infrastruktur. Vor dem Rollout in
+Rancher beziehungsweise mit der aus Rancher heruntergeladenen Kubeconfig einmal
+die tatsächlich vorhandenen Klassen prüfen:
+
+```sh
+kubectl get nodes
+kubectl get ingressclass
+kubectl get storageclass
+kubectl -n kube-system get pods -l app.kubernetes.io/name=traefik
+```
+
+Erwartet werden eine IngressClass `traefik` und eine als Standard markierte
+StorageClass, bei K3s üblicherweise `local-path`. `postgres.storageClassName`
+bleibt dann leer und Kubernetes verwendet diese Standardklasse. Nur wenn
+Longhorn bereits über Rancher installiert und als gewünschter Datenspeicher
+konfiguriert ist, wird dort ausdrücklich `longhorn` eingetragen.
+
+Für Leitweb, Keycloak und QGIS werden drei eigene DNS-Namen benötigt. Der bereits
+für Rancher verwendete Hostname darf nicht wiederverwendet werden. Alle drei
+Namen müssen auf die Adresse zeigen, unter der Traefik erreichbar ist.
+
+Wenn im Rancher-Cluster bereits cert-manager mit einem passenden ClusterIssuer
+läuft, kann er `leitweb-tls` erzeugen. Dazu im Produktionswertefile beispielsweise
+setzen:
+
+```yaml
+ingress:
+  className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  tls:
+    enabled: true
+    secretName: leitweb-tls
+```
+
+Der Issuer-Name ist clusterabhängig. Ohne cert-manager bleibt es beim manuellen
+Anlegen des TLS-Secrets aus Abschnitt 3.
 
 Die Beispiele verwenden:
 
@@ -57,14 +147,34 @@ Diese Namen müssen vor dem Rollout überall ersetzt werden.
 
 ## 2. Container-Images bauen
 
-Kubernetes baut keine Images aus einem Git-Repository. Die beiden Images müssen
-deshalb zuerst in eine Registry geladen werden:
+Kubernetes baut keine Images aus einem Git-Repository. Der Workflow
+`.github/workflows/container-images.yml` baut deshalb API und QGIS auf Pull
+Requests zur Kontrolle und veröffentlicht sie bei Änderungen auf `main`, bei
+einem Git-Tag `v*` oder bei manueller Ausführung nach GHCR:
+
+- `ghcr.io/thilob/leitweb-api:latest`
+- `ghcr.io/thilob/leitweb-qgis:latest`
+- zusätzlich `sha-<commit>` sowie bei einem Release-Tag beispielsweise
+  `v2026.11.0` und `2026.11.0`
+
+Die mitgelieferten Standardwerte verwenden `latest` mit `imagePullPolicy:
+Always`, damit eine neue Testinstallation sofort das zuletzt veröffentlichte
+Image lädt. Für Produktion muss in `values-production.yaml` ein unveränderlicher
+Release- oder SHA-Tag eingetragen werden.
+
+Nach dem ersten erfolgreichen Workflow-Lauf müssen beide Pakete in GitHub unter
+**Packages → Package settings → Change visibility → Public** öffentlich
+geschaltet werden. Solange sie privat sind, ist das weiter unten beschriebene
+`registry-credentials`-Secret erforderlich.
+
+Alternativ lassen sich die beiden Images weiterhin selbst bauen und in eine
+eigene Registry laden:
 
 ```sh
-docker build -f Dockerfile -t registry.example.org/leitweb/leitweb-api:2026.10.1 .
-docker build -f deploy/qgis-server/Dockerfile -t registry.example.org/leitweb/leitweb-qgis:2026.10.1 deploy/qgis-server
-docker push registry.example.org/leitweb/leitweb-api:2026.10.1
-docker push registry.example.org/leitweb/leitweb-qgis:2026.10.1
+docker build -f Dockerfile -t registry.example.org/leitweb/leitweb-api:2026.11.0 .
+docker build -f deploy/qgis-server/Dockerfile -t registry.example.org/leitweb/leitweb-qgis:2026.11.0 deploy/qgis-server
+docker push registry.example.org/leitweb/leitweb-api:2026.11.0
+docker push registry.example.org/leitweb/leitweb-qgis:2026.11.0
 ```
 
 Das QGIS-Image enthält `projects/start.qgz`. Ein geändertes QGIS-Projekt erfordert
@@ -129,7 +239,7 @@ Installation beziehungsweise idempotentes Upgrade:
 helm upgrade --install leitweb deploy/kubernetes/helm/leitweb \
   --namespace leitweb \
   -f values-production.yaml \
-  --atomic \
+  --rollback-on-failure \
   --timeout 20m
 ```
 
@@ -140,7 +250,7 @@ helm upgrade --install leitweb deploy/kubernetes/helm/leitweb \
 - Bei einem **Upgrade** berechnet Helm die Differenz und aktualisiert nur
   geänderte Ressourcen. Neue Image-Tags lösen beispielsweise ein Rolling Update
   der API aus.
-- `--atomic` setzt Kubernetes-Ressourcen zurück, wenn Pods innerhalb des Timeouts
+- `--rollback-on-failure` setzt Kubernetes-Ressourcen zurück, wenn Pods innerhalb des Timeouts
   nicht bereit werden. Datenbankmigrationen werden dadurch nicht rückgängig
   gemacht.
 - Das PostgreSQL-PVC trägt `helm.sh/resource-policy: keep` und bleibt nach
@@ -217,10 +327,44 @@ kubectl -n leitweb exec statefulset/leitweb-postgres -- \
   pg_dumpall -U leitweb > leitweb-backup.sql
 ```
 
+Wer bereits ein PVC mit PostgreSQL 16 beziehungsweise dem früher verwendeten
+PostGIS-3.5-Image besitzt, darf nicht lediglich auf `18-3.7` umtaggen. Für
+PostgreSQL 18 änderte sich außerdem der Container-Volume-Pfad von
+`/var/lib/postgresql/data` auf `/var/lib/postgresql`. Für diesen Major- und
+PostGIS-Sprung ist ein `pg_dump`/`pg_restore` in ein neu erzeugtes
+PostgreSQL-18-PVC der sichere Weg. Diese Migrationswarnung betrifft neue, leere
+Installationen nicht.
+
 `helm uninstall` erhält das vom Chart erzeugte PVC. Bei Plain YAML darf
 `kubectl delete -f 10-stack.yaml` nicht unbedacht verwendet werden, weil darin
 auch das PVC steht. Das Löschen des PVC entfernt Leitweb- und Keycloak-Daten.
 
 Für einen produktiven Betrieb sollte die Sicherung automatisiert, verschlüsselt
 und regelmäßig durch eine Testwiederherstellung geprüft werden.
+
+## Versionsprüfung und Updates
+
+Vor dieser Überarbeitung gab es keine automatische Versionsprüfung. Die Datei
+`/renovate.json` konfiguriert jetzt eine wöchentliche Prüfung am Montagmorgen.
+Renovate erfasst Container-Images in Helm-Werten, Kubernetes-YAML,
+Compose-Dateien und Dockerfiles sowie NuGet-Pakete und GitHub Actions. Die
+Kubernetes-Version, gegen die das Chart in CI gerendert wird, ist ebenfalls als
+Renovate-Abhängigkeit markiert. Neue Versionen erzeugen ein Dependency-Dashboard
+und Update-PRs; Datenbank-Major-Upgrades sind absichtlich gesperrt.
+
+Damit der Zeitplan tatsächlich läuft, muss für dieses Repository einmalig die
+[Renovate GitHub App](https://github.com/apps/renovate) aktiviert werden. Ohne
+App liest GitHub die Konfiguration nicht von selbst. Die Workflow-Datei
+`.github/workflows/kubernetes-validate.yml` prüft jeden Kubernetes-PR mit
+`helm lint`, rendert Standard- sowie Produktionswerte und validiert alle
+gerenderten und ausgeschriebenen Manifeste mit Kubeconform gegen die aktuell
+verfolgte Kubernetes-Version.
+
+Updates werden nicht unbeaufsichtigt in einen laufenden Cluster installiert.
+Nach erfolgreicher CI und Prüfung der Release-/Migrationshinweise wird der PR
+zusammengeführt, ein Backup erstellt und anschließend erneut
+`helm upgrade --install` ausgeführt. RKE2/K3s-Control-Plane- und Node-Upgrades
+werden getrennt über Rancher beziehungsweise den System Upgrade Controller in
+einem Wartungsfenster verwaltet; sie werden nicht durch dieses Anwendungs-Chart
+verändert.
 

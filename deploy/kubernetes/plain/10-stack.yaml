@@ -61,7 +61,7 @@ spec:
       securityContext: { fsGroup: 999 }
       containers:
         - name: postgres
-          image: postgis/postgis:16-3.5-alpine
+          image: postgis/postgis:18-3.7-alpine
           ports: [{ name: postgres, containerPort: 5432 }]
           env:
             - { name: POSTGRES_DB, value: leitweb }
@@ -80,7 +80,8 @@ spec:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { cpu: "1", memory: 2Gi }
           volumeMounts:
-            - { name: data, mountPath: /var/lib/postgresql/data }
+            # PostgreSQL 18+ stores its versioned PGDATA below this mount.
+            - { name: data, mountPath: /var/lib/postgresql }
             - { name: init, mountPath: /docker-entrypoint-initdb.d/01-create-keycloak.sh, subPath: 01-create-keycloak.sh, readOnly: true }
       volumes:
         - name: data
@@ -108,7 +109,7 @@ spec:
       securityContext: { fsGroup: 1000 }
       containers:
         - name: keycloak
-          image: quay.io/keycloak/keycloak:26.7.3
+          image: quay.io/keycloak/keycloak:26.8.2
           args: [start, --import-realm]
           ports:
             - { name: http, containerPort: 8080 }
@@ -166,7 +167,7 @@ spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       initContainers:
         - name: migrate-database
-          image: ghcr.io/thilob/leitweb-api:kubernetes
+          image: ghcr.io/thilob/leitweb-api:latest
           imagePullPolicy: Always
           args: [--migrate-only]
           securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
@@ -179,7 +180,7 @@ spec:
             - { name: ConnectionStrings__Database, value: "Host=leitweb-postgres;Port=5432;Database=leitweb;Username=leitweb;Password=$(POSTGRES_PASSWORD);Search Path=public" }
       containers:
         - name: api
-          image: ghcr.io/thilob/leitweb-api:kubernetes
+          image: ghcr.io/thilob/leitweb-api:latest
           imagePullPolicy: Always
           ports: [{ name: http, containerPort: 8080 }]
           securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
@@ -234,7 +235,7 @@ spec:
       securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: qgis-server
-          image: ghcr.io/thilob/leitweb-qgis:kubernetes
+          image: ghcr.io/thilob/leitweb-qgis:latest
           imagePullPolicy: Always
           ports: [{ name: fastcgi, containerPort: 5555 }]
           securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
@@ -278,7 +279,7 @@ spec:
       securityContext: { seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: nginx
-          image: nginx:1.30-alpine
+          image: nginx:1.30.6-alpine
           ports: [{ name: http, containerPort: 8080 }]
           readinessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 10 }
           livenessProbe: { httpGet: { path: /health, port: http }, periodSeconds: 15 }
@@ -293,11 +294,8 @@ kind: Ingress
 metadata:
   name: leitweb
   namespace: leitweb
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
     - secretName: leitweb-tls
       hosts: [leitweb.example.org, auth.example.org, qgis.example.org]

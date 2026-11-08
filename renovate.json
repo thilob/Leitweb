@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "customManagers:githubActionsVersions"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 06:00 on monday"],
+  "dependencyDashboard": true,
+  "minimumReleaseAge": "3 days",
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track the K3s version in the Kubernetes quick start",
+      "managerFilePatterns": ["/deploy/kubernetes/README\\.md$/"],
+      "matchStrings": [
+        "# renovate: k3s\\s+K3S_VERSION='(?<currentValue>[^']+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "k3s-io/k3s",
+      "versioningTemplate": "loose"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Keep all occurrences of the Kubernetes runtime images together",
+      "matchPackageNames": [
+        "postgis/postgis",
+        "quay.io/keycloak/keycloak",
+        "nginx"
+      ],
+      "groupName": "Kubernetes runtime images"
+    },
+    {
+      "description": "Database major upgrades require a tested backup and restore plan",
+      "matchPackageNames": ["postgis/postgis"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}
