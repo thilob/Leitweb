@@ -10,12 +10,13 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install --no-install-recommends -y qgis-server fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10002 --create-home qgis
+    && groupadd --system --gid 10002 qgis \
+    && useradd --system --uid 10002 --gid qgis --create-home qgis
 
 COPY start-qgis-server.sh /usr/local/bin/start-qgis-server
 COPY --chown=qgis:qgis projects /projects
 RUN chmod 0755 /usr/local/bin/start-qgis-server
-USER qgis
+USER 10002:10002
 WORKDIR /home/qgis
 EXPOSE 5555
 ENTRYPOINT ["/usr/bin/tini", "--"]

@@ -164,7 +164,7 @@ spec:
   template:
     metadata: { labels: { app: leitweb-api } }
     spec:
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
       initContainers:
         - name: migrate-database
           image: ghcr.io/thilob/leitweb-api:latest
@@ -232,7 +232,7 @@ spec:
   template:
     metadata: { labels: { app: leitweb-qgis-server } }
     spec:
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      securityContext: { runAsNonRoot: true, runAsUser: 10002, runAsGroup: 10002, seccompProfile: { type: RuntimeDefault } }
       containers:
         - name: qgis-server
           image: ghcr.io/thilob/leitweb-qgis:latest

@@ -301,6 +301,10 @@ enthalten.
 
 ## 5. Rollout prüfen
 
+Die API läuft mit UID/GID `10001`, QGIS Server mit UID/GID `10002`. Die
+numerischen IDs stehen sowohl in den Images als auch in den Pod-SecurityContexts;
+damit kann K3s `runAsNonRoot` bereits vor dem Containerstart eindeutig prüfen.
+
 ```sh
 kubectl -n leitweb get pods,pvc,svc,ingress
 kubectl -n leitweb rollout status statefulset/leitweb-postgres --timeout=10m

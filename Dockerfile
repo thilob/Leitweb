@@ -23,5 +23,5 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_EnableDiagnostics=0
 
 EXPOSE 8080
-USER leitweb
+USER 10001:10001
 ENTRYPOINT ["dotnet", "Leitweb.Api.dll"]
