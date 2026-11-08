@@ -81,7 +81,6 @@ Storage, Traefik und Kubernetes in einem Schritt bereit. Auf einem frischen
 Linux-Server mit freien Ports 80 und 443:
 
 ```sh
-# renovate: k3s
 K3S_VERSION='v1.37.2+k3s1'
 curl -sfL https://get.k3s.io | \
   INSTALL_K3S_VERSION="$K3S_VERSION" sh -
@@ -349,21 +348,22 @@ und regelmäßig durch eine Testwiederherstellung geprüft werden.
 
 ## Versionsprüfung und Updates
 
-Vor dieser Überarbeitung gab es keine automatische Versionsprüfung. Die Datei
-`/renovate.json` konfiguriert jetzt eine wöchentliche Prüfung am Montagmorgen.
-Renovate erfasst Container-Images in Helm-Werten, Kubernetes-YAML,
-Compose-Dateien und Dockerfiles sowie NuGet-Pakete und GitHub Actions. Die
-Kubernetes-Version, gegen die das Chart in CI gerendert wird, ist ebenfalls als
-Renovate-Abhängigkeit markiert. Neue Versionen erzeugen ein Dependency-Dashboard
-und Update-PRs; Datenbank-Major-Upgrades sind absichtlich gesperrt.
+Die Datei `/.github/dependabot.yml` konfiguriert eine wöchentliche Prüfung am
+Montagmorgen. Dependabot erfasst Container-Images in Helm-Werten,
+Kubernetes-YAML, Compose-Dateien und Dockerfiles sowie NuGet-Pakete und GitHub
+Actions. Neue Versionen erzeugen Update-PRs; Datenbank-Major-Upgrades sind
+absichtlich gesperrt. Major-Versionen anderer Abhängigkeiten werden für 30 Tage,
+Minor-Versionen für sieben Tage und Patch-Versionen für drei Tage zurückgehalten.
 
-Damit der Zeitplan tatsächlich läuft, muss für dieses Repository einmalig die
-[Renovate GitHub App](https://github.com/apps/renovate) aktiviert werden. Ohne
-App liest GitHub die Konfiguration nicht von selbst. Die Workflow-Datei
-`.github/workflows/kubernetes-validate.yml` prüft jeden Kubernetes-PR mit
-`helm lint`, rendert Standard- sowie Produktionswerte und validiert alle
-gerenderten und ausgeschriebenen Manifeste mit Kubeconform gegen die aktuell
-verfolgte Kubernetes-Version.
+Dependabot ist ein integrierter GitHub-Dienst und benötigt keine zusätzliche
+GitHub App. Frei notierte Versionswerte kann Dependabot jedoch nicht aktualisieren:
+`K3S_VERSION` in diesem Dokument, `KUBERNETES_VERSION` im Validierungsworkflow
+und die unterstützte Kubernetes-Spanne im Chart müssen bei Cluster-Upgrades
+gemeinsam manuell geprüft werden. Die Workflow-Datei
+`.github/workflows/kubernetes-validate.yml` prüft jeden Kubernetes-PR mit `helm
+lint`, rendert Standard- sowie Produktionswerte und validiert alle gerenderten
+und ausgeschriebenen Manifeste mit Kubeconform gegen die aktuell verfolgte
+Kubernetes-Version.
 
 Updates werden nicht unbeaufsichtigt in einen laufenden Cluster installiert.
 Nach erfolgreicher CI und Prüfung der Release-/Migrationshinweise wird der PR
