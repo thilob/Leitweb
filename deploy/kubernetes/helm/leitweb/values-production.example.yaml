@@ -1,12 +1,12 @@
 # Copy to a file outside Git or rename locally and adapt all values.
 images:
   api:
-    repository: registry.example.org/leitweb/leitweb-api
-    tag: "2026.11.0"
+    repository: ghcr.io/thilob/leitweb-api
+    tag: "sha-f8fa102"
     pullPolicy: IfNotPresent
   qgis:
-    repository: registry.example.org/leitweb/leitweb-qgis
-    tag: "2026.11.0"
+    repository: ghcr.io/thilob/leitweb-qgis
+    tag: "sha-f8fa102"
     pullPolicy: IfNotPresent
 
 existingSecret: leitweb-secrets

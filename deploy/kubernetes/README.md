@@ -162,10 +162,15 @@ Always`, damit eine neue Testinstallation sofort das zuletzt veröffentlichte
 Image lädt. Für Produktion muss in `values-production.yaml` ein unveränderlicher
 Release- oder SHA-Tag eingetragen werden.
 
-Nach dem ersten erfolgreichen Workflow-Lauf müssen beide Pakete in GitHub unter
-**Packages → Package settings → Change visibility → Public** öffentlich
-geschaltet werden. Solange sie privat sind, ist das weiter unten beschriebene
-`registry-credentials`-Secret erforderlich.
+Die Produktionsvorlage ist auf den erfolgreich gebauten Stand
+`sha-f8fa102` festgelegt. Beide GHCR-Pakete sind öffentlich und können von K3s
+ohne Registry-Secret geladen werden. Bei einem späteren Release wird der Tag in
+der lokalen `values-production.yaml` auf den nach erfolgreicher CI erzeugten
+`sha-<commit>`-Tag aktualisiert.
+
+Falls die Pakete später wieder privat oder in eine andere Registry verschoben
+werden, ist das weiter unten beschriebene `registry-credentials`-Secret
+erforderlich.
 
 Alternativ lassen sich die beiden Images weiterhin selbst bauen und in eine
 eigene Registry laden:
