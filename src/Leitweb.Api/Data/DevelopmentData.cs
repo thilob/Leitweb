@@ -9,18 +9,33 @@ public static class DevelopmentData
 
     public static async Task SeedAsync(LeitwebDbContext db)
     {
-        if (await db.Incidents.AnyAsync()) return;
-        var resource = new OperationalResource
+        var callSigns = new[] { "Well 11/21", "Well 11/31", "Well 11/32", "Well 11/33", "Well 11/34",
+            "Well 11/35", "Well 11/36", "Well 11/37", "Well 11/38", "Well 11/81" };
+        var resources = callSigns.Select((callSign, index) => new OperationalResource
         {
-            OrganizationId = ExampleOrganizationId, CallSign = "Florian 1/46-1", Name = "Hilfeleistungslöschfahrzeug"
-        };
-        var incident = new Incident
+            OrganizationId = ExampleOrganizationId, CallSign = callSign,
+            Name = index == 0 ? "Dienstgruppenleitung" : index == callSigns.Length - 1 ? "Verkehrsunfallaufnahme" : "Streifenwagen",
+            Status = index < 6 ? ResourceStatus.Available : index < 9 ? ResourceStatus.Dispatched : ResourceStatus.Unavailable
+        }).ToArray();
+        if (!await db.Resources.AnyAsync()) db.AddRange(resources);
+        if (!await db.Incidents.AnyAsync())
         {
-            OrganizationId = ExampleOrganizationId, ReferenceNumber = "E-2026-0001",
-            Title = "Beispieleinsatz", Description = "Automatisch erzeugte Testdaten", Location = "Musterstraße 1"
-        };
-        incident.StatusHistory.Add(new IncidentStatusEntry { Status = IncidentStatus.Open, ChangedBy = "system" });
-        db.AddRange(resource, incident);
+            var incident = new Incident
+            {
+                OrganizationId = ExampleOrganizationId, ReferenceNumber = "E-2026-0001",
+                Title = "Verdächtige Wahrnehmung", Occasion = PoliceOccasion.SuspiciousPerson,
+                Description = "Eine Anwohnerin meldet eine verdächtige Person im Bereich des Marktplatzes.", Location = "Marktplatz 1, Well"
+            };
+            incident.StatusHistory.Add(new IncidentStatusEntry { Status = IncidentStatus.Open, ChangedBy = "system" });
+            db.Add(incident);
+        }
+        if (!await db.GisLayers.AnyAsync())
+        {
+            db.GisLayers.AddRange(
+                new GisLayer { OrganizationId = ExampleOrganizationId, Name = "Einsatzorte", Description = "Ortsbezogene taktische Hinweise", Color = "#175e96" },
+                new GisLayer { OrganizationId = ExampleOrganizationId, Name = "Absperrbereiche", Description = "Linien und Flächen für Sperrmaßnahmen", Color = "#b3261e" },
+                new GisLayer { OrganizationId = ExampleOrganizationId, Name = "Gefahrenstellen", Description = "Temporäre und dauerhafte Gefahrenstellen", Color = "#b36a18" });
+        }
         await db.SaveChangesAsync();
     }
 }

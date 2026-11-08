@@ -10,11 +10,15 @@ public sealed class DevelopmentAuthenticationHandler : AuthenticationHandler<Aut
     public const string SchemeName = "Development";
 
     public DevelopmentAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger,
-        UrlEncoder encoder, ISystemClock clock) : base(options, logger, encoder, clock) { }
+        UrlEncoder encoder) : base(options, logger, encoder) { }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var claims = new List<Claim> { new(ClaimTypes.Name, "local-dispatcher") };
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.Name, "local-dispatcher"),
+            new("realm_access", "{\"roles\":[\"user-admin\",\"gis-vollzugriff\"]}")
+        };
         claims.AddRange(Permissions.All.Select(permission => new Claim("permission", permission)));
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));

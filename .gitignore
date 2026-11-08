@@ -5,3 +5,5 @@ obj/
 *.user
 *.suo
 .env
+artifacts/
+deploy/kubernetes/plain/01-secret.yaml

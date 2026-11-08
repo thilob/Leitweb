@@ -1,0 +1,55 @@
+name: Validate Kubernetes deployment
+
+on:
+  pull_request:
+    paths:
+      - "deploy/kubernetes/**"
+      - ".github/workflows/kubernetes-validate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/kubernetes/**"
+      - ".github/workflows/kubernetes-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # renovate: datasource=github-releases depName=kubernetes/kubernetes extractVersion=^v(?<version>.*)$
+  KUBERNETES_VERSION: "1.37.2"
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4.3.1
+        with:
+          version: v4.3.1
+      - name: Lint chart
+        run: helm lint deploy/kubernetes/helm/leitweb
+      - name: Render default values
+        run: >-
+          helm template leitweb deploy/kubernetes/helm/leitweb
+          --namespace leitweb
+          --kube-version "$KUBERNETES_VERSION"
+          --output-dir artifacts/rendered
+      - name: Render production example
+        run: >-
+          helm template leitweb deploy/kubernetes/helm/leitweb
+          --namespace leitweb
+          --kube-version "$KUBERNETES_VERSION"
+          --values deploy/kubernetes/helm/leitweb/values-production.example.yaml
+          --output-dir artifacts/rendered-production
+      - name: Validate rendered and plain manifests against Kubernetes schemas
+        run: >-
+          docker run --rm
+          --volume "$PWD:/work"
+          ghcr.io/yannh/kubeconform:v0.8.0-alpine
+          -strict
+          -summary
+          -kubernetes-version "$KUBERNETES_VERSION"
+          /work/deploy/kubernetes/plain
+          /work/artifacts/rendered
+          /work/artifacts/rendered-production

@@ -1,0 +1,114 @@
+{{- if gt (int .Values.api.replicas) 1 }}
+{{- fail "api.replicas must remain 1 until LiveUpdateHub uses a distributed backplane" }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "leitweb.fullname" . }}-api
+  labels:
+    {{- include "leitweb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    {{- include "leitweb.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "leitweb.fullname" . }}-api
+  labels:
+    {{- include "leitweb.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      {{- include "leitweb.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "leitweb.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      initContainers:
+        - name: migrate-database
+          image: "{{ .Values.images.api.repository }}:{{ .Values.images.api.tag }}"
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          args: [--migrate-only]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          env: &api-env
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.existingSecret }}, key: postgres-password } }
+            - { name: ASPNETCORE_ENVIRONMENT, value: Production }
+            - { name: Database__MigrateOnStartup, value: "false" }
+            - { name: InitialData__Seed, value: {{ .Values.initialDataSeed | quote }} }
+            - { name: ConnectionStrings__Database, value: "Host={{ include "leitweb.fullname" . }}-postgres;Port=5432;Database=leitweb;Username=leitweb;Password=$(POSTGRES_PASSWORD);Search Path=public" }
+      containers:
+        - name: api
+          image: "{{ .Values.images.api.repository }}:{{ .Values.images.api.tag }}"
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          ports:
+            - { name: http, containerPort: 8080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.existingSecret }}, key: postgres-password } }
+            - name: KEYCLOAK_ADMIN_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ .Values.existingSecret }}, key: keycloak-client-secret } }
+            - { name: ASPNETCORE_URLS, value: "http://+:8080" }
+            - { name: ASPNETCORE_ENVIRONMENT, value: Production }
+            - { name: Database__MigrateOnStartup, value: "false" }
+            - { name: InitialData__Seed, value: {{ .Values.initialDataSeed | quote }} }
+            - { name: ConnectionStrings__Database, value: "Host={{ include "leitweb.fullname" . }}-postgres;Port=5432;Database=leitweb;Username=leitweb;Password=$(POSTGRES_PASSWORD);Search Path=public" }
+            - { name: Authentication__Authority, value: "{{ .Values.publicUrls.keycloak }}/realms/leitweb" }
+            - { name: Authentication__PublicAuthority, value: "{{ .Values.publicUrls.keycloak }}/realms/leitweb" }
+            - { name: Authentication__MetadataAddress, value: "http://{{ include "leitweb.fullname" . }}-keycloak:8080/realms/leitweb/.well-known/openid-configuration" }
+            - { name: Authentication__Audience, value: leitweb-api }
+            - { name: Authentication__ClientId, value: leitweb-api }
+            - { name: Authentication__RequireHttpsMetadata, value: {{ .Values.requireHttpsMetadata | quote }} }
+            - { name: KeycloakAdmin__BaseUrl, value: "http://{{ include "leitweb.fullname" . }}-keycloak:8080" }
+            - { name: KeycloakAdmin__Realm, value: leitweb }
+            - { name: KeycloakAdmin__ClientId, value: leitweb-user-admin }
+            - { name: KeycloakAdmin__ClientSecret, value: $(KEYCLOAK_ADMIN_CLIENT_SECRET) }
+            - { name: Gis__QgisServerUrl, value: "http://{{ include "leitweb.fullname" . }}-qgis-web:8080/ows" }
+            - { name: Gis__QgisPublicUrl, value: {{ .Values.publicUrls.qgis | quote }} }
+            - { name: Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command, value: Warning }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{ toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{ toYaml . | nindent 8 }}
+      {{- end }}
+

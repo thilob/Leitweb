@@ -2,6 +2,30 @@
   "realm": "leitweb",
   "enabled": true,
   "registrationAllowed": false,
+  "roles": {
+    "realm": [
+      {
+        "name": "user-admin",
+        "description": "Darf Benutzer anlegen und deren GIS-Rollen verwalten"
+      },
+      {
+        "name": "gis-sehen",
+        "description": "Darf GIS-Karten und freigegebene Layer sehen"
+      },
+      {
+        "name": "gis-objekte-aendern",
+        "description": "Darf GIS-Objekte sehen, anlegen und bearbeiten",
+        "composite": true,
+        "composites": { "realm": ["gis-sehen"] }
+      },
+      {
+        "name": "gis-vollzugriff",
+        "description": "Darf GIS-Quellen, Layer, Konfigurationen und Objekte verwalten",
+        "composite": true,
+        "composites": { "realm": ["gis-sehen", "gis-objekte-aendern"] }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "leitweb-api",
@@ -9,8 +33,8 @@
       "publicClient": true,
       "directAccessGrantsEnabled": true,
       "standardFlowEnabled": true,
-      "redirectUris": ["http://localhost:5000/*"],
-      "webOrigins": ["http://localhost:5000"],
+      "redirectUris": ["*"],
+      "webOrigins": ["+"],
       "protocolMappers": [
         {
           "name": "permissions",
@@ -36,15 +60,54 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "leitweb-user-admin",
+      "name": "Leitweb Benutzerverwaltung",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_ADMIN_CLIENT_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "fullScopeAllowed": true
     }
   ],
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "id": "cd288aaa-c4e3-4f65-ab5e-a4b1af29a7f0",
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"permissions\",\"displayName\":\"Leitweb-Berechtigungen\",\"permissions\":{\"view\":[\"admin\"],\"edit\":[\"admin\"]},\"multivalued\":true}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  },
   "users": [
     {
       "username": "dispatcher",
+      "firstName": "Leitstelle",
+      "lastName": "Dispatcher",
+      "email": "dispatcher@example.invalid",
+      "emailVerified": true,
       "enabled": true,
+      "realmRoles": ["user-admin"],
       "credentials": [{ "type": "password", "value": "change-me", "temporary": true }],
       "attributes": {
-        "permissions": ["incident.read", "incident.create", "incident.update", "resource.read", "resource.manage"]
+        "permissions": ["incident.read", "incident.create", "incident.update", "resource.read", "resource.manage", "case.read", "case.manage", "document.dispatch"]
+      }
+    },
+    {
+      "username": "service-account-leitweb-user-admin",
+      "enabled": true,
+      "serviceAccountClientId": "leitweb-user-admin",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users", "view-realm"]
       }
     }
   ]
