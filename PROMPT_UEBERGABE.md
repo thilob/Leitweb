@@ -1,6 +1,11 @@
 # Übergabe-Prompt für eine neue Codex-Instanz
 
-Du arbeitest im privaten GitHub-Projekt `thilob/Leitweb` auf dem Branch `Dorfpolizei-Well-mit-GIS`. Bitte lies zuerst `ANFORDERUNGEN.md`, `README.md` und den aktuellen Git-Status. Bewahre vorhandene Änderungen und arbeite auf diesem Branch weiter, sofern der Benutzer nichts anderes verlangt.
+> Aktualisierung vom 26. November 2026: Maßgeblich ist der Branch `main`.
+> Die chronologischen Fortführungsabschnitte weiter unten dokumentieren teilweise
+> historische Zwischenstände. Aktuelle Betriebs- und Kubernetes-Anweisungen
+> stehen in `README.md` und `deploy/kubernetes/README.md`.
+
+Du arbeitest im privaten GitHub-Projekt `thilob/Leitweb` auf dem Branch `main`. Bitte lies zuerst `ANFORDERUNGEN.md`, `README.md` und den aktuellen Git-Status. Bewahre vorhandene Änderungen und arbeite auf diesem Branch weiter, sofern der Benutzer nichts anderes verlangt.
 
 ## Ziel des Projekts
 
@@ -91,11 +96,11 @@ Arbeite autonom weiter, aber behandle Datenschutz, Zugriffsrechte, Datenlöschun
 
 ## Fortführung: GIS-Stand und lauffähiger Compose-Betrieb (30.08.2026)
 
-Die vorstehenden Angaben dokumentieren den ursprünglichen Stand und sind in mehreren Punkten überholt. Weitergearbeitet wird aktuell auf dem Branch `Dorfpolizei-Well-mit-GIS`.
+Die vorstehenden Angaben dokumentieren den ursprünglichen Stand und sind in mehreren Punkten überholt. Zu diesem damaligen Zeitpunkt wurde auf dem Branch `Dorfpolizei-Well-mit-GIS` weitergearbeitet.
 
 ### Inzwischen umgesetzt
 
-- Die Anwendung verwendet .NET 10 statt .NET 6. `global.json` verlangt SDK 10.0.111; der vorgesehene Docker-Build besitzt ein passendes SDK.
+- Die Anwendung verwendet .NET 10 statt .NET 6. `global.json` verlangt SDK 10.0.403; der vorgesehene Docker-Build besitzt ein passendes SDK.
 - Browser-Anmeldung über Keycloak mit Authorization Code Flow und PKCE ist implementiert. Access- und Refresh-Token werden nur im Speicher gehalten; der Access-Token wird auch für die authentifizierte WebSocket-Verbindung `/ws/updates` verwendet.
 - Der lokale Compose-Standard bleibt ein ausdrücklich nicht für die Öffentlichkeit bestimmter Development-Testbetrieb. `/app-config.json` veröffentlicht dafür `useTestAuthentication`. Das Frontend überspringt in diesem Modus Keycloak, lädt die Einsatzlage sofort und verwendet keine fingierten Bearer-Token.
 - Der Development-Benutzer besitzt alle fachlichen Permissions sowie `user-admin` und `gis-vollzugriff`, damit Benutzerverwaltung und GIS im lokalen Referenzbetrieb geprüft werden können. Außerhalb dieses Modus bleiben Keycloak und die dort vergebenen Rollen maßgeblich.
@@ -263,6 +268,6 @@ Anschließend `/status` aufrufen. Bei Zugriff von einem anderen Rechner dürfen 
 
 - `node --check src/Leitweb.Api/wwwroot/app.js` erfolgreich
 - `git diff --check` erfolgreich
-- Ein lokaler .NET-Build war auf diesem Windows-Host nicht möglich, weil nur .NET 6 installiert ist, das Projekt aber SDK 10.0.111 verlangt.
+- Ein lokaler .NET-Build war zu diesem Zeitpunkt auf dem Windows-Host nicht möglich, weil nur .NET 6 installiert war, das Projekt aber bereits ein .NET-10-SDK verlangte.
 - Ein lokaler Compose-/Container-Smoke-Test war nicht möglich, weil Docker auf diesem Host nicht installiert ist.
 - Nach dem GitHub-Redeploy müssen deshalb `/status`, `/health/status`, die drei internen Prüfungen und die drei Browserprüfungen einmal in der Zielinstanz kontrolliert werden.

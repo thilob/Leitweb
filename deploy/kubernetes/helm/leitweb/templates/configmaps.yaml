@@ -21,7 +21,7 @@ metadata:
     {{- include "leitweb.labels" . | nindent 4 }}
 data:
   leitweb-realm.json: |
-{{ .Files.Get "files/leitweb-realm.json" | replace "__LEITWEB_PUBLIC_URL__" .Values.publicUrls.leitweb | indent 4 }}
+{{ .Files.Get "files/leitweb-realm.json" | replace "__LEITWEB_PUBLIC_URL__" .Values.publicUrls.leitweb | replace "__KEYCLOAK_SSL_REQUIRED__" .Values.keycloak.sslRequired | indent 4 }}
 ---
 apiVersion: v1
 kind: ConfigMap

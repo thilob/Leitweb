@@ -5,6 +5,11 @@ Dieses Verzeichnis bietet zwei gleichwertige Installationswege:
 1. `helm/leitweb`: empfohlen für wiederholbare Installationen, Upgrades und Rollbacks.
 2. `plain`: normale Kubernetes-YAML-Dateien für `kubectl apply` oder Ranchers **Import YAML**.
 
+Für den vorbereiteten HTTP-POC auf dem Rancher-K3s-Cluster unter
+`192.168.213.200` stehen das Wertefile
+`helm/leitweb/values-rancher-poc.yaml` und die Schritt-für-Schritt-Anleitung
+[`RANCHER-POC.md`](RANCHER-POC.md) bereit.
+
 Helm ist keine technische Voraussetzung der Anwendung. Ein Helm-Chart ist eine
 parametrisierte Vorlage, aus der Helm dieselben Kubernetes-Ressourcen erzeugt,
 die unter `plain` bereits ausgeschrieben vorliegen. Nach der Installation läuft
@@ -59,7 +64,8 @@ LTR-Repository gebaut, aktuell
 - eine Standard-StorageClass oder eine explizite StorageClass wie Longhorn
 - ein gepflegter Ingress-Controller; die Beispiele verwenden `traefik`
 - DNS-Namen für Leitweb, Keycloak und QGIS
-- ein TLS-Zertifikat, das alle drei Namen abdeckt
+- für einen produktiven HTTPS-Betrieb ein TLS-Zertifikat, das alle drei Namen
+  abdeckt; der vorbereitete interne POC verwendet bewusst HTTP
 - eine vom Cluster erreichbare Container-Registry
 
 `ingress-nginx` darf für neue Installationen nicht mehr verwendet werden: Das

@@ -60,6 +60,10 @@ unveränderliche Release- oder Commit-Tags vorgesehen. Die vollständige
 Installations-, Upgrade-, Rollback-, Backup- und Versionsanleitung befindet sich
 unter [`deploy/kubernetes/README.md`](deploy/kubernetes/README.md).
 
+Für einen ersten HTTP-POC auf dem Rancher-K3s-Cluster mit Kubernetes 1.36 und
+Traefik unter `192.168.213.200` gibt es einen vorbereiteten Helm-Wertesatz und
+eine eigene [`Rancher-POC-Anleitung`](deploy/kubernetes/RANCHER-POC.md).
+
 In `.env` müssen mindestens die beiden Beispielpasswörter ersetzt werden. Bei einem anderen Rechnernamen oder einer Server-IP wird außerdem `PUBLIC_HOSTNAME` angepasst. Danach:
 
 ```sh

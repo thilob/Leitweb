@@ -38,6 +38,9 @@ postgres:
 keycloak:
   replicas: 1
   adminUsername: admin
+  # Keep HTTPS mandatory for external clients unless a POC values file
+  # explicitly disables this Keycloak realm policy.
+  sslRequired: external
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: "2", memory: 2Gi }

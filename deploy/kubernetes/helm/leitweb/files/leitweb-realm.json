@@ -1,6 +1,7 @@
 {
   "realm": "leitweb",
   "enabled": true,
+  "sslRequired": "__KEYCLOAK_SSL_REQUIRED__",
   "registrationAllowed": false,
   "roles": {
     "realm": [

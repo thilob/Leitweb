@@ -41,6 +41,13 @@ jobs:
           --kube-version "$KUBERNETES_VERSION"
           --values deploy/kubernetes/helm/leitweb/values-production.example.yaml
           --output-dir artifacts/rendered-production
+      - name: Render Rancher POC values
+        run: >-
+          helm template leitweb deploy/kubernetes/helm/leitweb
+          --namespace leitweb
+          --kube-version "1.36.0"
+          --values deploy/kubernetes/helm/leitweb/values-rancher-poc.yaml
+          --output-dir artifacts/rendered-rancher-poc
       - name: Validate rendered and plain manifests against Kubernetes schemas
         run: >-
           docker run --rm
@@ -52,3 +59,12 @@ jobs:
           /work/deploy/kubernetes/plain
           /work/artifacts/rendered
           /work/artifacts/rendered-production
+      - name: Validate Rancher POC against Kubernetes 1.36 schemas
+        run: >-
+          docker run --rm
+          --volume "$PWD:/work"
+          ghcr.io/yannh/kubeconform:v0.8.0-alpine
+          -strict
+          -summary
+          -kubernetes-version "1.36.0"
+          /work/artifacts/rendered-rancher-poc

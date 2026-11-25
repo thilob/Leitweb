@@ -1,0 +1,46 @@
+# POC deployment for the Rancher-managed K3s v1.36 cluster at 192.168.213.200.
+# This intentionally uses HTTP and relaxed Keycloak transport requirements.
+# Do not reuse these settings unchanged for production.
+
+fullnameOverride: leitweb
+
+images:
+  api:
+    repository: ghcr.io/thilob/leitweb-api
+    tag: "sha-d874c8e"
+    pullPolicy: IfNotPresent
+  qgis:
+    repository: ghcr.io/thilob/leitweb-qgis
+    tag: "sha-d874c8e"
+    pullPolicy: IfNotPresent
+
+existingSecret: leitweb-secrets
+
+publicUrls:
+  leitweb: http://leitweb.192.168.213.200.sslip.io
+  keycloak: http://auth.192.168.213.200.sslip.io
+  qgis: http://qgis.192.168.213.200.sslip.io/ows
+
+initialDataSeed: true
+requireHttpsMetadata: false
+
+postgres:
+  # Empty selects the cluster's default StorageClass (normally local-path on K3s).
+  storageClassName: ""
+  storageSize: 5Gi
+
+keycloak:
+  # HTTP is acceptable only for this private-network POC.
+  sslRequired: none
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  tls:
+    enabled: false
+    secretName: ""
+  hosts:
+    leitweb: leitweb.192.168.213.200.sslip.io
+    keycloak: auth.192.168.213.200.sslip.io
+    qgis: qgis.192.168.213.200.sslip.io
