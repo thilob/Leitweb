@@ -180,7 +180,8 @@ kubectl -n leitweb logs <POD-NAME> --all-containers
 1. `http://leitweb.192.168.213.200.sslip.io/health/live`
 2. `http://leitweb.192.168.213.200.sslip.io/health/ready`
 3. `http://leitweb.192.168.213.200.sslip.io/status`
-4. Anmeldung als `dispatcher` mit dem temporären Kennwort `change-me`
+4. Anmeldung als `dispatcher` mit dem temporären Kennwort `change-me`; der
+   Benutzer besitzt für den POC `user-admin` und `gis-vollzugriff`
 5. Kennwort beim ersten Login ändern
 6. `http://qgis.192.168.213.200.sslip.io/ows?SERVICE=WMS&REQUEST=GetCapabilities`
 
@@ -214,6 +215,21 @@ Offen bleiben für einen späteren Ausbau:
 - replizierter Storage beziehungsweise externes PostgreSQL für einen Ausfall
   von `cp1`
 - mehrere API-Replikate erst nach Einführung einer Live-Update-Backplane
+
+### Keycloak 26.8 und Benutzerverwaltung
+
+Keycloak 26.8 prüft für die Admin REST API zusätzlich die Zielgruppe des
+Access-Tokens. Der Serviceclient `leitweb-user-admin` erhält deshalb den
+eingebauten Default-Client-Scope `kc-admin-api`. Ohne diesen Scope liefert
+Keycloak trotz korrekt zugewiesener Rollen wie `view-users` und
+`manage-users` HTTP 401; Leitweb kann dann keine Benutzer anzeigen.
+
+Der Realm-Import läuft mit `IGNORE_EXISTING`. Bei einem bereits vorhandenen
+Realm muss `kc-admin-api` daher einmalig als Default-Client-Scope des Clients
+`leitweb-user-admin` ergänzt werden. Ebenso wirken nachträglich im Import
+ergänzte Rollen für `dispatcher` nicht rückwirkend; sie müssen im bestehenden
+Realm explizit zugewiesen werden. Nach einer Rollenänderung ist eine neue
+Anmeldung erforderlich.
 
 ## POC entfernen
 

@@ -66,7 +66,8 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "fullScopeAllowed": true
+      "fullScopeAllowed": true,
+      "defaultClientScopes": ["kc-admin-api"]
     }
   ],
   "components": {
@@ -91,7 +92,7 @@
       "email": "dispatcher@example.invalid",
       "emailVerified": true,
       "enabled": true,
-      "realmRoles": ["user-admin"],
+      "realmRoles": ["user-admin", "gis-vollzugriff"],
       "credentials": [{ "type": "password", "value": "change-me", "temporary": true }],
       "attributes": {
         "permissions": ["incident.read", "incident.create", "incident.update", "resource.read", "resource.manage", "case.read", "case.manage", "document.dispatch"]

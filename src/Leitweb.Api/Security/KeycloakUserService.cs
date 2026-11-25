@@ -74,7 +74,7 @@ public sealed class KeycloakUserService
         if (admin is null) return null;
         using var request = admin.Request(HttpMethod.Get, "users?max=500");
         using var response = await _http.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode) return Array.Empty<KeycloakUserSummary>();
+        response.EnsureSuccessStatusCode();
         var users = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         var result = new List<KeycloakUserSummary>();
         foreach (var user in users.EnumerateArray())
