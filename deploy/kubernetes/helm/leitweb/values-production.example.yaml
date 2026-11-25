@@ -20,7 +20,7 @@ postgres:
   # Empty means: use the cluster's default StorageClass. K3s normally provides
   # local-path; set longhorn explicitly only when it is installed and desired.
   storageClassName: ""
-  storageSize: 50Gi
+  storageSize: 5Gi
 
 ingress:
   # Use the IngressClass installed in the target cluster.
