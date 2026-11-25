@@ -22,3 +22,22 @@ app.kubernetes.io/name: {{ include "leitweb.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
+{{- define "leitweb.scheduling" -}}
+{{- with .nodeSelector }}
+nodeSelector:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .affinity }}
+affinity:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .tolerations }}
+tolerations:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- with .topologySpreadConstraints }}
+topologySpreadConstraints:
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}
+

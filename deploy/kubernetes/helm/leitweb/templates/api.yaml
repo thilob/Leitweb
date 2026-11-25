@@ -42,6 +42,7 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{ toYaml . | nindent 8 }}
       {{- end }}
+      {{- include "leitweb.scheduling" .Values.scheduling.application | nindent 6 }}
       securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
       initContainers:
         - name: migrate-database
@@ -102,13 +103,4 @@ spec:
             periodSeconds: 15
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector: {{ toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity: {{ toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations: {{ toYaml . | nindent 8 }}
-      {{- end }}
 

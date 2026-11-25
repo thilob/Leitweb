@@ -44,3 +44,30 @@ ingress:
     leitweb: leitweb.192.168.213.200.sslip.io
     keycloak: auth.192.168.213.200.sslip.io
     qgis: qgis.192.168.213.200.sslip.io
+
+# Only explicitly verified nodes receive Leitweb workloads. Application pods
+# require a verified worker; PostgreSQL remains on cp1. The soft spread rule
+# distributes singleton components without blocking a rollout when only one
+# verified worker is available.
+scheduling:
+  application:
+    nodeSelector:
+      leitweb.io/eligible: "true"
+      leitweb.io/worker: "true"
+    affinity: {}
+    tolerations: []
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: In
+              values: [api, keycloak, qgis-server, qgis-web]
+  database:
+    nodeSelector:
+      leitweb.io/eligible: "true"
+      leitweb.io/storage: local
+    affinity: {}
+    tolerations: []

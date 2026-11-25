@@ -64,6 +64,18 @@ ingress:
     qgis: qgis.example.org
 
 podAnnotations: {}
-nodeSelector: {}
-tolerations: []
-affinity: {}
+
+# Scheduling is separated between the local database and replaceable
+# application pods. Keep these maps empty for a generic cluster. A concrete
+# installation can require explicit node eligibility labels and still use soft
+# affinity/spreading rules for application pods.
+scheduling:
+  application:
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    topologySpreadConstraints: []
+  database:
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []

@@ -36,6 +36,7 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmaps.yaml") . | sha256sum }}
     spec:
+      {{- include "leitweb.scheduling" .Values.scheduling.database | nindent 6 }}
       securityContext:
         fsGroup: 999
       containers:

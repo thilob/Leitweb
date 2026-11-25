@@ -43,6 +43,27 @@ kein Helm-Prozess im Cluster.
   Datenbankschema nicht zurück; vor produktiven Upgrades ist deshalb ein Backup
   erforderlich.
 
+## Node-Freigabe und Verteilung
+
+Das Chart trennt Scheduling-Regeln für die lokale Datenbank von den
+zustandslosen Anwendungskomponenten. Unter `scheduling.application` und
+`scheduling.database` lassen sich jeweils `nodeSelector`, `affinity`,
+`tolerations` sowie für die Anwendung zusätzlich
+`topologySpreadConstraints` konfigurieren.
+
+Der Rancher-POC verwendet eine ausdrückliche Freigabe: Nur Nodes mit
+`leitweb.io/eligible=true` erhalten Pods. Anwendungspods bevorzugen zusätzlich
+Nodes mit `leitweb.io/worker=true`. Im vorbereiteten Drei-Node-POC ist dieses
+Worker-Label verpflichtend, damit Anwendungslast nicht auf der Control Plane
+landet. Fällt ein Worker aus, übernimmt der andere freigegebene Worker.
+PostgreSQL verlangt `leitweb.io/storage=local`, weil ein K3s-`local-path`-PV
+immer an genau einen Node gebunden ist.
+
+Neue oder reparierte Nodes werden erst nach Prüfung von Status, DNS und
+Pod-Netzwerk freigegeben. Ein Beitritt allein verteilt keine bereits laufenden
+Pods neu; nach der Freigabe ist ein kontrolliertes Helm-Upgrade oder ein
+Rollout-Neustart der Deployments erforderlich.
+
 ## 1. Voraussetzungen und unterstützte Versionen
 
 Stand 8. November 2026 werden die drei von Kubernetes gepflegten Minor-Versionen

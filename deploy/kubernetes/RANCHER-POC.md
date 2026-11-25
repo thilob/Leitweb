@@ -30,7 +30,54 @@ Erwartet werden Kubernetes 1.36, eine `traefik`-IngressClass und eine als
 Standard markierte StorageClass. Bei K3s ist das normalerweise `local-path`.
 Die Adresse, über die Traefik erreichbar ist, muss `192.168.213.200` sein.
 
-## 2. Kubeconfig herunterladen
+## 2. Nodes für Leitweb freigeben
+
+Das POC-Chart plant Pods nur auf ausdrücklich geprüften Nodes ein. `cp1` bleibt
+ausschließlich für PostgreSQL zuständig. Zustandslose Anwendungspods benötigen
+einen geprüften Worker:
+
+```powershell
+kubectl label node cp1 leitweb.io/eligible=true leitweb.io/storage=local --overwrite
+kubectl label node wn1 leitweb.io/eligible=true leitweb.io/worker=true --overwrite
+```
+
+Ein neuer oder zurückkehrender Node wie `wn2` erhält zunächst keine dieser
+Markierungen. Zuerst prüfen:
+
+```powershell
+kubectl get node wn2 -o wide
+kubectl describe node wn2
+```
+
+Danach einen kurzlebigen Test-Pod gezielt auf `wn2` starten und aus diesem Pod
+Kubernetes-DNS sowie die Erreichbarkeit des API-Service prüfen. Erst nach einem
+erfolgreichen Test freigeben:
+
+```powershell
+kubectl -n leitweb run leitweb-node-check `
+  --image=busybox:1.37.0 `
+  --restart=Never `
+  --overrides='{"spec":{"nodeName":"wn2"}}' `
+  --command -- sh -ec `
+  'nslookup kubernetes.default.svc.cluster.local; nslookup leitweb-api.leitweb.svc.cluster.local; wget -qO- http://leitweb-api.leitweb.svc.cluster.local:8080/health/live'
+
+kubectl -n leitweb wait --for=jsonpath='{.status.phase}'=Succeeded pod/leitweb-node-check --timeout=2m
+kubectl -n leitweb logs pod/leitweb-node-check
+kubectl -n leitweb delete pod leitweb-node-check
+
+kubectl label node wn2 leitweb.io/eligible=true leitweb.io/worker=true --overwrite
+kubectl -n leitweb rollout restart deployment/leitweb-api
+kubectl -n leitweb rollout restart deployment/leitweb-keycloak
+kubectl -n leitweb rollout restart deployment/leitweb-qgis-server
+kubectl -n leitweb rollout restart deployment/leitweb-qgis-web
+```
+
+Die vier Anwendungskomponenten werden möglichst über die geprüften Worker
+gestreut. Wenn nur ein geprüfter Worker verfügbar ist, laufen alle dort; die
+Control Plane übernimmt keine Anwendungspods. PostgreSQL bleibt wegen seines
+lokalen PV auf dem Storage-Node.
+
+## 3. Kubeconfig herunterladen
 
 In Rancher beim Zielcluster **Download KubeConfig** wählen. Anschließend auf
 dem Rechner mit diesem Repository den Kontext prüfen:
@@ -58,7 +105,7 @@ Service-Account-Konfiguration ersetzt werden. Die Datei enthält Zugangsdaten,
 darf nicht ins Repository kopiert oder committed werden und sollte nach dem POC
 widerrufen beziehungsweise gelöscht werden.
 
-## 3. Namespace und Secret anlegen
+## 4. Namespace und Secret anlegen
 
 Das Secret bleibt außerhalb von Git. Für den POC können in PowerShell drei
 zufällige Werte erzeugt und direkt an Kubernetes übergeben werden:
@@ -87,7 +134,7 @@ werden. Name und Schlüssel müssen exakt lauten:
 - `keycloak-admin-password`
 - `keycloak-client-secret`
 
-## 4. Chart prüfen und installieren
+## 5. Chart prüfen und installieren
 
 Aus dem Wurzelverzeichnis dieses Repositorys:
 
@@ -108,7 +155,7 @@ helm upgrade --install leitweb deploy/kubernetes/helm/leitweb `
 Das Chart verwendet den Namen `leitweb` für seine Ressourcen. Das erleichtert
 die folgenden Diagnosebefehle.
 
-## 5. Rollout beobachten
+## 6. Rollout beobachten
 
 ```powershell
 kubectl -n leitweb get pods,pvc,svc,ingress
@@ -128,7 +175,7 @@ kubectl -n leitweb describe pod <POD-NAME>
 kubectl -n leitweb logs <POD-NAME> --all-containers
 ```
 
-## 6. POC testen
+## 7. POC testen
 
 1. `http://leitweb.192.168.213.200.sslip.io/health/live`
 2. `http://leitweb.192.168.213.200.sslip.io/health/ready`
