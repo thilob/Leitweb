@@ -23,6 +23,8 @@ requireHttpsMetadata: true
 api:
   # Keep this at 1 until LiveUpdateHub has a distributed backplane.
   replicas: 1
+  # Keep the interactive API documentation disabled on public installations.
+  swaggerEnabled: false
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits: { cpu: "1", memory: 1Gi }

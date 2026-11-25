@@ -24,6 +24,10 @@ publicUrls:
 initialDataSeed: true
 requireHttpsMetadata: false
 
+api:
+  # Expose /swagger only for this private-network POC.
+  swaggerEnabled: true
+
 postgres:
   # Empty selects the cluster's default StorageClass (normally local-path on K3s).
   storageClassName: ""

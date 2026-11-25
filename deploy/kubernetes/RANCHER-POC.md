@@ -180,10 +180,16 @@ kubectl -n leitweb logs <POD-NAME> --all-containers
 1. `http://leitweb.192.168.213.200.sslip.io/health/live`
 2. `http://leitweb.192.168.213.200.sslip.io/health/ready`
 3. `http://leitweb.192.168.213.200.sslip.io/status`
-4. Anmeldung als `dispatcher` mit dem temporären Kennwort `change-me`; der
+4. `http://leitweb.192.168.213.200.sslip.io/swagger/index.html`
+5. Anmeldung als `dispatcher` mit dem temporären Kennwort `change-me`; der
    Benutzer besitzt für den POC `user-admin` und `gis-vollzugriff`
-5. Kennwort beim ersten Login ändern
-6. `http://qgis.192.168.213.200.sslip.io/ows?SERVICE=WMS&REQUEST=GetCapabilities`
+6. Kennwort beim ersten Login ändern
+7. `http://qgis.192.168.213.200.sslip.io/ows?SERVICE=WMS&REQUEST=GetCapabilities`
+
+Swagger bleibt im Produktionsprofil standardmäßig deaktiviert. Nur das private
+Rancher-POC setzt `api.swaggerEnabled=true`; dadurch wird die API-Dokumentation
+freigeschaltet, ohne die Anwendung auf das ASP.NET-Core-Profil `Development`
+oder die Testauthentifizierung umzustellen.
 
 ## Verifizierter Pausenstand vom 26. November 2026
 

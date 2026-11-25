@@ -112,7 +112,11 @@ if (migrateOnly || migrateOnStartup)
 if (migrateOnly) return;
 
 app.UseForwardedHeaders();
-if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Swagger:Enabled"))
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 app.Use(async (context, next) =>
 {
     if (!context.Request.Path.StartsWithSegments("/api"))

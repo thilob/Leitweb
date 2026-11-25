@@ -75,6 +75,7 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.existingSecret }}, key: keycloak-client-secret } }
             - { name: ASPNETCORE_URLS, value: "http://+:8080" }
             - { name: ASPNETCORE_ENVIRONMENT, value: Production }
+            - { name: Swagger__Enabled, value: {{ .Values.api.swaggerEnabled | quote }} }
             - { name: Database__MigrateOnStartup, value: "false" }
             - { name: InitialData__Seed, value: {{ .Values.initialDataSeed | quote }} }
             - { name: ConnectionStrings__Database, value: "Host={{ include "leitweb.fullname" . }}-postgres;Port=5432;Database=leitweb;Username=leitweb;Password=$(POSTGRES_PASSWORD);Search Path=public" }
