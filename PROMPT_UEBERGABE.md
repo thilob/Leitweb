@@ -4,6 +4,10 @@
 > Die chronologischen Fortführungsabschnitte weiter unten dokumentieren teilweise
 > historische Zwischenstände. Aktuelle Betriebs- und Kubernetes-Anweisungen
 > stehen in `README.md` und `deploy/kubernetes/README.md`.
+> Der verifizierte Rancher-K3s-POC und sein Pausenstand vom 26. November 2026
+> sind in `deploy/kubernetes/RANCHER-POC.md` dokumentiert. Das Helm-Chart 0.3.0
+> verteilt PostgreSQL auf `cp1` und die Anwendungskomponenten auf die geprüften
+> Worker `wn1` und `wn2`.
 
 Du arbeitest im privaten GitHub-Projekt `thilob/Leitweb` auf dem Branch `main`. Bitte lies zuerst `ANFORDERUNGEN.md`, `README.md` und den aktuellen Git-Status. Bewahre vorhandene Änderungen und arbeite auf diesem Branch weiter, sofern der Benutzer nichts anderes verlangt.
 

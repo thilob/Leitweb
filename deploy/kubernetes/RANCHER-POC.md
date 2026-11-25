@@ -184,6 +184,37 @@ kubectl -n leitweb logs <POD-NAME> --all-containers
 5. Kennwort beim ersten Login ändern
 6. `http://qgis.192.168.213.200.sslip.io/ows?SERVICE=WMS&REQUEST=GetCapabilities`
 
+## Verifizierter Pausenstand vom 26. November 2026
+
+Der POC läuft auf K3s `v1.36.6+k3s1` mit Helm-Chart `0.3.0`. Helm-Release
+`leitweb` steht in Revision 5 auf `deployed`. Alle fünf Pods sind bereit und
+starten ohne Neustarts. `/health/status` meldet `healthy`; API-Liveness,
+API-Readiness, Keycloak-OIDC-Metadaten und QGIS-`GetCapabilities` antworten mit
+HTTP 200. HTTPS wurde für diesen internen POC bewusst zurückgestellt.
+
+Die geprüfte Verteilung ist:
+
+| Node | Labels | Leitweb-Workloads |
+| --- | --- | --- |
+| `cp1` | `leitweb.io/eligible=true`, `leitweb.io/storage=local` | PostgreSQL |
+| `wn1` | `leitweb.io/eligible=true`, `leitweb.io/worker=true` | API, QGIS Server |
+| `wn2` | `leitweb.io/eligible=true`, `leitweb.io/worker=true` | Keycloak, QGIS Gateway |
+
+`wn2` wurde vor der Freigabe mit einem kurzlebigen BusyBox-Pod geprüft. Die
+Auflösung von `kubernetes.default.svc.cluster.local` und
+`leitweb-api.leitweb.svc.cluster.local` sowie der Aufruf von `/health/live`
+waren erfolgreich. Die Scheduling-Regeln sind mit Commit `fe189eb` auf `main`
+gesichert; die zugehörige GitHub-Actions-Kubernetes-Validierung war erfolgreich.
+
+Offen bleiben für einen späteren Ausbau:
+
+- Browser-Smoke-Test und Änderung des temporären `dispatcher`-Kennworts
+- einmaliges PostgreSQL-Backup und Wiederherstellungstest
+- HTTPS mit eigener interner CA oder eigener Domain
+- replizierter Storage beziehungsweise externes PostgreSQL für einen Ausfall
+  von `cp1`
+- mehrere API-Replikate erst nach Einführung einer Live-Update-Backplane
+
 ## POC entfernen
 
 ```powershell
