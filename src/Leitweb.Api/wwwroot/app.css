@@ -8,3 +8,15 @@
 @media(max-width:600px){.user-info{align-items:flex-start;display:grid}.user-role-row{grid-template-columns:1fr}.user-role-row button{justify-self:end}.password-control{grid-template-columns:1fr 1fr}.password-control input{grid-column:1/-1}}
 @media(max-width:600px){.runtime-summary{align-items:flex-start}.runtime-summary-meta{text-align:left}.runtime-summary{display:grid}.runtime-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.gis-workspace{grid-template-columns:220px minmax(0,1fr)}}@media(max-width:600px){.gis-profile-actions{display:grid}.gis-workspace{display:block;height:auto}.gis-sidebar{border-right:0;border-bottom:1px solid var(--line)}.gis-map-shell{height:58vh;min-height:420px}}
+
+.topbar:has(.intercom:not(.hidden)){height:auto;min-height:68px;gap:12px;padding-block:8px}
+.topbar:has(.intercom:not(.hidden)) .system-state{justify-content:flex-end;flex-wrap:wrap}
+.intercom{display:grid;gap:3px;min-width:0}
+.intercom-controls,.intercom-feedback{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.intercom-controls select{max-width:13rem;min-width:0}
+.intercom-feedback output{min-width:0;overflow-wrap:anywhere}
+.intercom-feedback .logout-button{padding:2px 7px}
+.intercom :disabled{opacity:.55;cursor:default}
+#intercom-talk{touch-action:none;user-select:none}
+#intercom-talk[aria-pressed="true"]{background:#244d39;color:#fff;border-color:#244d39}
+@media(max-width:1150px){.topbar:has(.intercom:not(.hidden)){flex-wrap:wrap}.topbar:has(.intercom:not(.hidden)) .system-state{justify-content:flex-start}}

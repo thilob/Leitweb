@@ -91,6 +91,17 @@ spec:
             - { name: KeycloakAdmin__ClientSecret, value: $(KEYCLOAK_ADMIN_CLIENT_SECRET) }
             - { name: Gis__QgisServerUrl, value: "http://{{ include "leitweb.fullname" . }}-qgis-web:8080/ows" }
             - { name: Gis__QgisPublicUrl, value: {{ .Values.publicUrls.qgis | quote }} }
+            {{- with .Values.intercom.stunUrl }}
+            - { name: Intercom__StunUrl, value: {{ . | quote }} }
+            {{- end }}
+            {{- if .Values.intercom.turnUrl }}
+            - { name: Intercom__TurnUrl, value: {{ .Values.intercom.turnUrl | quote }} }
+            - name: Intercom__TurnSecret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "intercom.turnSecretName is required when intercom.turnUrl is set" .Values.intercom.turnSecretName | quote }}
+                  key: intercom-turn-secret
+            {{- end }}
             - { name: Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command, value: Warning }
           startupProbe:
             httpGet: { path: /health/live, port: http }
