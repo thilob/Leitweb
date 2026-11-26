@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using Leitweb.Api.Data;
 using Leitweb.Api.Diagnostics;
 using Leitweb.Api.Realtime;
 using Leitweb.Api.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -14,6 +16,7 @@ builder.Services.AddHttpClient<KeycloakUserService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<RuntimeStatusService>();
 builder.Services.AddSingleton<LiveUpdateHub>();
+builder.Services.AddSingleton<IntercomHub>();
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -57,6 +60,12 @@ else
             {
                 if (context.HttpContext.Request.Path == "/ws/updates")
                     context.Token = context.Request.Query["access_token"];
+                else if (context.HttpContext.Request.Path == "/ws/intercom")
+                {
+                    var bearer = context.HttpContext.WebSockets.WebSocketRequestedProtocols.FirstOrDefault(
+                        protocol => protocol.StartsWith(IntercomHub.BearerPrefix, StringComparison.Ordinal));
+                    if (bearer is not null) context.Token = bearer[IntercomHub.BearerPrefix.Length..];
+                }
                 return Task.CompletedTask;
             }
         };
@@ -208,6 +217,33 @@ app.MapGet("/ws/updates", async (HttpContext context, LiveUpdateHub updates) =>
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
     await updates.HoldAsync(socket, context.RequestAborted);
 }).RequireAuthorization();
+app.MapGet("/ws/intercom", async (HttpContext context, IntercomHub intercom) =>
+{
+    var request = context.Request;
+    if (!context.WebSockets.IsWebSocketRequest ||
+        !context.WebSockets.WebSocketRequestedProtocols.Contains(IntercomHub.Protocol) ||
+        !Uri.TryCreate(request.Headers.Origin.ToString(), UriKind.Absolute, out var origin) ||
+        !Uri.TryCreate($"{request.Scheme}://{request.Host}", UriKind.Absolute, out var expected) ||
+        !string.Equals(origin.Authority, expected.Authority, StringComparison.OrdinalIgnoreCase) ||
+        origin.Scheme != expected.Scheme)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        return;
+    }
+
+    var authentication = await context.AuthenticateAsync();
+    using var socket = await context.WebSockets.AcceptWebSocketAsync(IntercomHub.Protocol);
+    await intercom.HoldAsync(socket, context.User.Identity?.Name ?? "Leitweb-Client",
+        context.User.FindFirstValue(ClaimTypes.NameIdentifier), authentication.Properties?.ExpiresUtc,
+        context.RequestAborted);
+}).RequireAuthorization();
+app.MapPost("/api/v1/intercom/session", async (HttpContext context, IntercomSessionRenewal renewal, IntercomHub intercom) =>
+{
+    var authentication = await context.AuthenticateAsync();
+    var subject = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    return subject is not null && authentication.Properties?.ExpiresUtc is { } expires &&
+        intercom.Renew(renewal.Key, subject, expires) ? Results.NoContent() : Results.NotFound();
+}).RequireAuthorization();
 app.MapGet("/health/live", () => Results.Ok(new { status = "healthy" }));
 app.MapGet("/health/ready", async (LeitwebDbContext db, CancellationToken ct) =>
     await db.Database.CanConnectAsync(ct) ? Results.Ok(new { status = "ready" }) : Results.StatusCode(503));
@@ -216,3 +252,5 @@ app.MapGet("/health/status", async (RuntimeStatusService status, CancellationTok
 app.Run();
 
 public partial class Program { }
+
+internal sealed record IntercomSessionRenewal(string Key);

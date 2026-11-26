@@ -218,6 +218,35 @@ Angemeldete Keycloak-Nutzer können ihr eigenes Kennwort über **Passwort änder
 
 Unter **Organisation** zeigt Leitweb den SHA-Tag des laufenden API-Builds an, beispielsweise `sha-5ef79d3`. Damit lässt sich auch bei einer Installation über `latest` der konkrete Build erkennen. Die CI übergibt die Git-Revision beim Image-Build. Bei einem manuellen Docker-Build kann dieselbe Revision mit `--build-arg LEITWEB_BUILD_REVISION="$(git rev-parse HEAD)"` gesetzt werden. Ohne Build-Metadaten bleibt die Anzeige ausgeblendet.
 
+### Intercom
+
+Im Kopfbereich neben **Abmelden** zeigt Leitweb die online verbundenen Browser-Clients an. Für die Teilnahme **Audio aktivieren** wählen, den Mikrofonzugriff erlauben und bei Bedarf das Headset im Betriebssystem als Standard-Audiogerät auswählen.
+
+- Für ein Direktgespräch einen verfügbaren Client auswählen. Die Gegenstelle kann den Anruf annehmen oder ablehnen.
+- Für ein Gruppengespräch **Kanal 1**, **Kanal 2** oder **Kanal 3** auswählen. Pro Kanal können bis zu acht Clients teilnehmen.
+- Zum Sprechen **Sprechen** gedrückt halten. Sobald Leitweb das Sprechrecht erteilt, erscheint **Du sprichst**. Die Taste funktioniert auch mit Leertaste oder Eingabetaste, wenn sie den Fokus hat. Beim Loslassen, beim Wechsel in einen anderen Tab und nach spätestens rund 30 Sekunden gibt Leitweb das Sprechrecht frei.
+- **Verlassen** beendet das Gespräch. **Audio aus** verlässt es und gibt das Mikrofon frei.
+
+WebRTC überträgt die Audiodaten verschlüsselt zwischen den Browsern. Der authentifizierte WebSocket `/ws/intercom` verwaltet Präsenz, Einladungen, Signalisierung und das Sprechrecht. Leitweb zeichnet Gespräche nicht auf. Die Präsenz umfasst offene Leitweb-Seiten mit aktiver Verbindung. Ein Browser kann gleichzeitig an einem Gespräch teilnehmen.
+
+WebRTC bietet Browser-Schnittstellen für Mikrofon und Wiedergabe sowie Verfahren für direkte und vermittelte Verbindungen. SIP wäre vor allem für den Anschluss an eine Telefonanlage relevant. RTSP dient zur Steuerung der Auslieferung von Medienströmen.
+
+Der Browser benötigt einen sicheren Kontext. Für entfernte Clients ist HTTPS erforderlich. Ein Zugriff über `http://localhost` eignet sich für lokale Tests. Direkt erreichbare Clients können WebRTC im selben Netz ohne zusätzliche Dienste nutzen. Für verschiedene Netze lässt sich ein STUN-Server setzen. Wenn Firewalls oder NAT direkte Verbindungen verhindern, benötigt WebRTC einen von den Clients erreichbaren TURN-Relay.
+
+| Konfiguration der Leitweb-API | Zweck |
+| --- | --- |
+| `Intercom__StunUrl` | Optionale STUN-URL, beispielsweise `stun:stun.example.org:3478` |
+| `Intercom__TurnUrl` | Optionale TURN-URL, beispielsweise `turns:turn.example.org:5349?transport=tcp` |
+| `Intercom__TurnSecret` | Gemeinsames Geheimnis mit coturn (`use-auth-secret`, `static-auth-secret`), als Secret an die API übergeben. Leitweb stellt pro Verbindung befristete TURN-Zugangsdaten aus. |
+
+Kubernetes betreibt Leitweb mit einer API-Replik. Im Helm-Chart lassen sich `intercom.stunUrl`, `intercom.turnUrl` und `intercom.turnSecretName` setzen. Das referenzierte Kubernetes-Secret enthält im Schlüsselfeld `intercom-turn-secret` das gemeinsame Geheimnis. Der Ingress muss für `/ws/intercom` das WebSocket-Upgrade, das ausgehandelte Subprotokoll und den öffentlichen Host weiterleiten. Die normale Token-Erneuerung erhält laufende Gespräche. Nach einem Verbindungsabbruch oder API-Neustart betritt der Browser den Gruppenkanal erneut. Direktgespräche müssen neu aufgebaut werden.
+
+#### Prüfstand
+
+Der .NET-Build und die Helm-Prüfung einschließlich gerenderter STUN- und TURN-Werte waren erfolgreich. Ein lokaler Test mit drei Chrome-Clients und virtuellen Audiogeräten prüfte Direktanrufe, die Übertragung eines Testtons, Gruppenkanäle, konkurrierende Sprechanfragen und die Freigabe des Sprechrechts bei Fokusverlust. Ein separater Test mit signierten JWTs bestätigte die Ablehnung von Verbindungen ohne Token oder mit fremdem Ursprung sowie die Erneuerung durch den angemeldeten Nutzer.
+
+Ein Test im Zielcluster mit physischen Headsets steht noch aus.
+
 Für den Zugriff der API auf die Keycloak Admin REST API richtet der Realm-Import den vertraulichen Client `leitweb-user-admin` mit einem eigenen Service-Account automatisch ein. Das Secret wird beim Import aus der Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` eingesetzt und steht nicht in der Importdatei. Der Service-Account erhält ausschließlich folgende Rollen des Clients `realm-management`:
 
 - `manage-users`
