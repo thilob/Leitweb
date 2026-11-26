@@ -114,7 +114,7 @@ async function exchangeToken(parameters) {
   const canManageUsers = auth.roles.includes('user-admin');
   const canViewGis = ['gis-sehen','gis-objekte-aendern','gis-vollzugriff'].some(role => auth.roles.includes(role));
   $('#users-nav')?.classList.toggle('hidden', !canManageUsers);
-  $('#api-link')?.classList.toggle('hidden', !canManageUsers);
+  $('#api-link')?.classList.toggle('hidden', !canManageUsers || !auth.config?.showApiLink);
   $('#gis-nav')?.classList.toggle('hidden', !canViewGis);
   auth.expiresAt = Date.now() + (tokens.expires_in * 1000);
 }
@@ -177,7 +177,7 @@ async function initializeAuthentication() {
   if (auth.config.useTestAuthentication) {
     auth.roles = ['user-admin', 'gis-vollzugriff'];
     $('#new-user')?.classList.remove('hidden');
-    $('#api-link')?.classList.remove('hidden');
+    $('#api-link')?.classList.toggle('hidden', !auth.config.showApiLink);
     $('#gis-nav')?.classList.remove('hidden');
     return;
   }

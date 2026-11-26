@@ -189,7 +189,9 @@ kubectl -n leitweb logs <POD-NAME> --all-containers
 Swagger bleibt im Produktionsprofil standardmäßig deaktiviert. Nur das private
 Rancher-POC setzt `api.swaggerEnabled=true`; dadurch wird die API-Dokumentation
 freigeschaltet, ohne die Anwendung auf das ASP.NET-Core-Profil `Development`
-oder die Testauthentifizierung umzustellen.
+oder die Testauthentifizierung umzustellen. Der direkte Swagger-Endpunkt bleibt
+damit für technische POC-Prüfungen erreichbar; der Navigationslink **API** wird
+in der Leitweb-Seitenleiste im Produktionsprofil nicht angezeigt.
 
 ## Verifizierter Pausenstand vom 26. November 2026
 

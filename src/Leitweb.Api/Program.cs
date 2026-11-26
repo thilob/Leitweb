@@ -139,13 +139,14 @@ app.Use(async (context, next) =>
         throw;
     }
 });
-app.MapGet("/app-config.json", (IConfiguration configuration) => Results.Ok(new
+app.MapGet("/app-config.json", (IConfiguration configuration, IWebHostEnvironment environment) => Results.Ok(new
 {
     authority = configuration["Authentication:PublicAuthority"] ?? configuration["Authentication:Authority"],
     tokenEndpoint = "/auth/token",
     clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"],
     qgisPublicUrl = configuration["Gis:QgisPublicUrl"],
-    useTestAuthentication
+    useTestAuthentication,
+    showApiLink = environment.IsDevelopment()
 }));
 app.MapPost("/auth/token", async (HttpContext context, IConfiguration configuration,
     IHttpClientFactory httpClientFactory, CancellationToken ct) =>
