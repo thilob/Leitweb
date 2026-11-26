@@ -7,7 +7,7 @@ fullnameOverride: leitweb
 images:
   api:
     repository: ghcr.io/thilob/leitweb-api
-    tag: "sha-af22fc2"
+    tag: "sha-d155c83"
     pullPolicy: IfNotPresent
   qgis:
     repository: ghcr.io/thilob/leitweb-qgis

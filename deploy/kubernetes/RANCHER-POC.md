@@ -136,6 +136,8 @@ werden. Name und Schlüssel müssen exakt lauten:
 
 ## 5. Chart prüfen und installieren
 
+Die POC-Werte legen das API-Image auf `sha-d155c83` fest. Helm verwendet denselben Tag für die API und den Init-Container `migrate-database`. Nach dem Rollout lässt sich der Build-Tag in Leitweb unter **Organisation** prüfen. Für ein späteres Upgrade wird `images.api.tag` in `values-rancher-poc.yaml` auf den gewünschten veröffentlichten SHA-Tag gesetzt.
+
 Aus dem Wurzelverzeichnis dieses Repositorys:
 
 ```powershell
