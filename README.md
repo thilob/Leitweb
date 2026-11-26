@@ -237,6 +237,12 @@ Der Browser benötigt einen sicheren Kontext. Für entfernte Clients ist HTTPS e
 
 Kubernetes betreibt Leitweb mit einer API-Replik. Im Helm-Chart lassen sich `intercom.stunUrl`, `intercom.turnUrl` und `intercom.turnSecretName` setzen. Das referenzierte Kubernetes-Secret enthält im Schlüsselfeld `intercom-turn-secret` das gemeinsame Geheimnis. Der Ingress muss für `/ws/intercom` das WebSocket-Upgrade, das ausgehandelte Subprotokoll und den öffentlichen Host weiterleiten. Die normale Token-Erneuerung erhält laufende Gespräche. Nach einem Verbindungsabbruch oder API-Neustart betritt der Browser den Gruppenkanal erneut. Direktgespräche müssen neu aufgebaut werden.
 
+#### Prüfstand
+
+Der .NET-Build und die Helm-Prüfung einschließlich gerenderter STUN- und TURN-Werte waren erfolgreich. Ein lokaler Test mit drei Chrome-Clients und virtuellen Audiogeräten prüfte Direktanrufe, die Übertragung eines Testtons, Gruppenkanäle, konkurrierende Sprechanfragen und die Freigabe des Sprechrechts bei Fokusverlust. Ein separater Test mit signierten JWTs bestätigte die Ablehnung von Verbindungen ohne Token oder mit fremdem Ursprung sowie die Erneuerung durch den angemeldeten Nutzer.
+
+Ein Test im Zielcluster mit physischen Headsets steht noch aus.
+
 Für den Zugriff der API auf die Keycloak Admin REST API richtet der Realm-Import den vertraulichen Client `leitweb-user-admin` mit einem eigenen Service-Account automatisch ein. Das Secret wird beim Import aus der Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` eingesetzt und steht nicht in der Importdatei. Der Service-Account erhält ausschließlich folgende Rollen des Clients `realm-management`:
 
 - `manage-users`
