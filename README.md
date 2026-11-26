@@ -212,6 +212,8 @@ Das Leitweb-Image wird durch Dockhand aus dem Dockerfile im Repository gebaut. I
 
 Die integrierte Benutzerverwaltung erscheint nur für angemeldete Benutzer mit der Keycloak-Realm-Rolle `user-admin`. Der initiale Benutzer `dispatcher` erhält diese Rolle beim Realm-Import und kann die Benutzerverwaltung nach einer neuen Anmeldung über den gleichnamigen Menüpunkt öffnen. Der API-Endpunkt prüft die Rolle zusätzlich serverseitig. Dort lassen sich Konten mit Kontaktdaten, automatisch erzeugtem temporärem Kennwort und einer optionalen GIS-Zugriffsstufe anlegen. Neue Benutzer erhalten die normalen fachlichen Leitweb-Berechtigungen und müssen das Kennwort beim ersten Login ändern; die Rolle `user-admin` wird nicht weitergegeben.
 
+Angemeldete Keycloak-Nutzer können ihr eigenes Kennwort über **Passwort ändern** in der Hauptnavigation ändern. Keycloak verarbeitet das Kennwort in seinem eigenen Dialog und leitet anschließend zu Leitweb zurück. Die Funktion steht allen Keycloak-Nutzern zur Verfügung und wird im lokalen Testmodus ausgeblendet.
+
 Für den Zugriff der API auf die Keycloak Admin REST API richtet der Realm-Import den vertraulichen Client `leitweb-user-admin` mit einem eigenen Service-Account automatisch ein. Das Secret wird beim Import aus der Dockhand-Variable `KEYCLOAK_ADMIN_CLIENT_SECRET` eingesetzt und steht nicht in der Importdatei. Der Service-Account erhält ausschließlich folgende Rollen des Clients `realm-management`:
 
 - `manage-users`

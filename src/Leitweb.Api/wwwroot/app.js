@@ -157,7 +157,7 @@ async function refreshAccessToken() {
   }
 }
 
-async function startLogin() {
+async function startLogin(action) {
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(32)));
   const loginState = base64Url(crypto.getRandomValues(new Uint8Array(24)));
   sessionStorage.setItem('leitweb-pkce-verifier', verifier);
@@ -166,6 +166,7 @@ async function startLogin() {
   const supportsS256 = Boolean(globalThis.crypto?.subtle);
   const codeChallenge = supportsS256 ? base64Url(await sha256(verifier)) : verifier;
   const query = new URLSearchParams({client_id:auth.config.clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid profile',state:loginState,code_challenge:codeChallenge,code_challenge_method:supportsS256?'S256':'plain'});
+  if (action) query.set('kc_action', action);
   location.assign(`${auth.config.authority}/protocol/openid-connect/auth?${query}`);
   return new Promise(() => {});
 }
@@ -191,6 +192,14 @@ async function initializeAuthentication() {
   sessionStorage.removeItem('leitweb-login-state');
   sessionStorage.removeItem('leitweb-pkce-verifier');
   history.replaceState({}, document.title, location.pathname);
+  $('#change-password').classList.remove('hidden');
+  if (query.get('kc_action') === 'UPDATE_PASSWORD') {
+    switch (query.get('kc_action_status')) {
+      case 'success': toast('Passwort geändert'); break;
+      case 'cancelled': toast('Passwortänderung abgebrochen'); break;
+      case 'error': toast('Passwortänderung fehlgeschlagen', true); break;
+    }
+  }
 }
 
 async function connectLiveUpdates() {
@@ -679,6 +688,7 @@ $('#gis-delete-selected').onclick=async event=>{const button=event.currentTarget
 $('#save-gis-profile').onclick=()=>saveCurrentGisProfile().catch(error=>toast(error.message,true));
 $('#gis-profile').onchange=e=>{const profile=gisProfiles.find(x=>x.id===e.target.value);if(profile)applyGisProfile(profile);};
 $('#logout').onclick=logout;
+$('#change-password').onclick=()=>startLogin('UPDATE_PASSWORD').catch(error=>toast(error.message,true));
 $('#incident-simulation').onchange=e=>{localStorage.setItem('leitweb-incident-simulation',e.target.value);scheduleTransmittedIncident();};
 $('#transmission-alert').onclick=openTransmittedIncident;
 document.addEventListener('pointerdown',enableNotificationAudio,{once:true});
