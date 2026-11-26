@@ -11,8 +11,10 @@ RUN groupadd --system --gid 10001 leitweb \
     && useradd --system --uid 10001 --gid leitweb --no-create-home leitweb
 COPY --from=build /app/publish .
 
+ARG LEITWEB_BUILD_REVISION
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
+    Build__Revision=${LEITWEB_BUILD_REVISION} \
     DOTNET_EnableDiagnostics=0
 
 EXPOSE 8080

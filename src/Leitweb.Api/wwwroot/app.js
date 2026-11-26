@@ -173,9 +173,13 @@ async function startLogin(action) {
 }
 
 async function initializeAuthentication() {
-  const response = await fetch('/app-config.json');
+  const response = await fetch('/app-config.json', {cache: 'no-store'});
   if (!response.ok) throw new Error('Anwendungskonfiguration konnte nicht geladen werden.');
   auth.config = await response.json();
+  if (auth.config.versionTag) {
+    $('#build-version').textContent = auth.config.versionTag;
+    $('#build-version').classList.remove('hidden');
+  }
   if (auth.config.useTestAuthentication) {
     auth.roles = ['user-admin', 'gis-vollzugriff'];
     $('#new-user')?.classList.remove('hidden');

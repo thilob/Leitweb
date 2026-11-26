@@ -154,6 +154,7 @@ app.MapGet("/app-config.json", (IConfiguration configuration, IWebHostEnvironmen
     tokenEndpoint = "/auth/token",
     clientId = configuration["Authentication:ClientId"] ?? configuration["Authentication:Audience"],
     qgisPublicUrl = configuration["Gis:QgisPublicUrl"],
+    versionTag = configuration["Build:Revision"] is { Length: >= 7 } revision ? $"sha-{revision[..7]}" : null,
     useTestAuthentication,
     showApiLink = environment.IsDevelopment()
 }));

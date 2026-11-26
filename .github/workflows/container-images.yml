@@ -54,6 +54,8 @@ jobs:
       - name: Calculate image tags
         id: meta
         uses: docker/metadata-action@v6.2.0
+        env:
+          DOCKER_METADATA_SHORT_SHA_LENGTH: 7
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
@@ -66,6 +68,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-args: ${{ matrix.image == 'leitweb-api' && format('LEITWEB_BUILD_REVISION={0}', github.sha) || '' }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

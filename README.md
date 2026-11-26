@@ -214,6 +214,10 @@ Die integrierte Benutzerverwaltung erscheint nur für angemeldete Benutzer mit d
 
 Angemeldete Keycloak-Nutzer können ihr eigenes Kennwort über **Passwort ändern** in der Hauptnavigation ändern. Keycloak verarbeitet das Kennwort in seinem eigenen Dialog und leitet anschließend zu Leitweb zurück. Die Funktion steht allen Keycloak-Nutzern zur Verfügung und wird im lokalen Testmodus ausgeblendet.
 
+### Versionsanzeige
+
+Unter **Organisation** zeigt Leitweb den SHA-Tag des laufenden API-Builds an, beispielsweise `sha-5ef79d3`. Damit lässt sich auch bei einer Installation über `latest` der konkrete Build erkennen. Die CI übergibt die Git-Revision beim Image-Build. Bei einem manuellen Docker-Build kann dieselbe Revision mit `--build-arg LEITWEB_BUILD_REVISION="$(git rev-parse HEAD)"` gesetzt werden. Ohne Build-Metadaten bleibt die Anzeige ausgeblendet.
+
 ### Intercom
 
 Im Kopfbereich neben **Abmelden** zeigt Leitweb die online verbundenen Browser-Clients an. Für die Teilnahme **Audio aktivieren** wählen, den Mikrofonzugriff erlauben und bei Bedarf das Headset im Betriebssystem als Standard-Audiogerät auswählen.
