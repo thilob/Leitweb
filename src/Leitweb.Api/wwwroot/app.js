@@ -120,7 +120,6 @@ async function exchangeToken(parameters) {
 }
 
 function logout() {
-  intercom.stop();
   if (auth.config?.useTestAuthentication) {
     location.reload();
     return;
@@ -450,11 +449,6 @@ function openCaseDialog(incident){const f=$('#case-form');f.reset();f.elements.i
 function openRelatedDialog(type,caseId){const f=$(`#${type}-form`);f.reset();f.elements.caseId.value=caseId;$(`#${type}-dialog`).showModal();}
 
 function toast(message, error=false) { const el=$('#toast'); el.textContent=message; el.style.background=error?'#8f2924':''; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2600); }
-
-const intercom = new Intercom($('#intercom'), async () => {
-  await refreshAccessToken();
-  return auth.accessToken;
-}, toast);
 function showView(name) { document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden')); $(`#${name}-view`).classList.remove('hidden'); document.querySelectorAll('.nav-item[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===name)); }
 
 function runtimeCard(check) {
@@ -747,5 +741,5 @@ if (location.pathname.replace(/\/$/,'') === '/status') {
   showView('runtime');
   loadRuntimeStatus();
 } else {
-  initializeAuthentication().then(async () => { intercom.start(); initializeIncidentSimulation(); await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
+  initializeAuthentication().then(async () => { initializeIncidentSimulation(); await loadAll(); connectLiveUpdates(); }).catch(error => toast(error.message, true));
 }
