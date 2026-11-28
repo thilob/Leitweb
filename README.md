@@ -26,6 +26,8 @@ Der Grundbestand kann bei Bedarf aktualisiert werden:
 
 Beim Aufbau einer leeren Datenbank wird `Data/addresses.tsv` einmalig importiert. Bestehende Datenbanken bleiben dabei unverändert; für spätere Aktualisierungen ist eine explizite Import-/Austauschmigration vorgesehen.
 
+Die Einsatzkarte und die Kartenzentrierung verwenden die im Adressregister hinterlegten Koordinaten. Die Adresssuche erkennt gespeicherte Einsatzorte im Format `Straße Hausnummer, Ort` oder `Straße Hausnummer, PLZ Ort`. Bei vollständigen Adressen müssen Straße, Hausnummer und Ort übereinstimmen. Für diese Korrektur genügt ein Update des API-Images. Die vorhandenen Adressdaten müssen dafür nicht neu importiert werden, sofern sie bereits Koordinaten enthalten.
+
 ## Compose-Dateien pro Branch
 
 | Branch | Betrieb | Compose-Datei |
